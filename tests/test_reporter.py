@@ -77,6 +77,66 @@ class TestDataPayload:
         assert payload["errors"] == errors
 
 
+class TestHTMLUIElements:
+    """テンプレ HTML が想定した UI 要素を含んでいることを静的に検証する。
+
+    JS テストフレームワーク無しでも、テンプレートの骨格欠落を検知できる。
+    """
+    def _gen(self, tmp_path: Path) -> str:
+        out = tmp_path / "out.html"
+        write_html([], [], [], str(out), "2026-01-01 00:00:00")
+        return out.read_text(encoding="utf-8")
+
+    def test_depth_expand_select_present(self, tmp_path: Path):
+        html_text = self._gen(tmp_path)
+        assert 'id="depthExpand"' in html_text
+        assert "深さ 1" in html_text
+        assert "全展開" in html_text
+
+    def test_column_panel_present(self, tmp_path: Path):
+        html_text = self._gen(tmp_path)
+        assert 'id="columnPanel"' in html_text
+        for col in ("type", "ext", "size", "count", "mtime", "path"):
+            assert f'data-col="{col}"' in html_text
+
+    def test_csv_export_button_present(self, tmp_path: Path):
+        html_text = self._gen(tmp_path)
+        assert 'id="csvExport"' in html_text
+        assert "CSV" in html_text
+
+    def test_symlink_filter_option_present(self, tmp_path: Path):
+        html_text = self._gen(tmp_path)
+        assert "リンクのみ" in html_text
+
+    def test_url_hash_handler_present(self, tmp_path: Path):
+        html_text = self._gen(tmp_path)
+        # URL ハッシュ同期ロジックが script に含まれている
+        assert "applyHashState" in html_text
+        assert "syncHash" in html_text
+
+    def test_csv_escape_helper_present(self, tmp_path: Path):
+        html_text = self._gen(tmp_path)
+        assert "function csvEscape" in html_text
+
+
+class TestCustomTitle:
+    def test_title_reflected_in_html(self, tmp_path: Path):
+        out = tmp_path / "out.html"
+        write_html([], [], [], str(out), "2026-01-01 00:00:00",
+                   title="拠点A 月次レポート")
+        html_text = out.read_text(encoding="utf-8")
+        assert "<title>拠点A 月次レポート</title>" in html_text
+        assert "<h1>拠点A 月次レポート</h1>" in html_text
+
+    def test_title_escaped(self, tmp_path: Path):
+        out = tmp_path / "out.html"
+        write_html([], [], [], str(out), "2026-01-01 00:00:00",
+                   title='<img src=x onerror=alert(1)>')
+        html_text = out.read_text(encoding="utf-8")
+        assert "<img src=x" not in html_text  # raw tag が出ない
+        assert "&lt;img" in html_text  # HTML エスケープされている
+
+
 class TestDedupSkipped:
     def test_dedup_skipped_included_in_payload(self, tmp_path: Path):
         out = tmp_path / "out.html"

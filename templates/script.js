@@ -15,6 +15,13 @@
     }
   }
 
+  // 深さを事前計算（id は親が先に来る順なので 1 パスで埋まる）。
+  var depthOf = new Array(items.length);
+  for (var di = 0; di < items.length; di++) {
+    var dpi = items[di];
+    depthOf[di] = (dpi.p === null || dpi.p === undefined) ? 0 : depthOf[dpi.p] + 1;
+  }
+
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function(c) {
       return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
@@ -325,6 +332,7 @@
 
   function ensurePathRendered(id) {
     // 指定 item の祖先パスを必要最小限だけ実体化（フィルタ時のスマート展開用）。
+    // stack を浅→深の順に消化することで、各 pop 時には親が必ず実体化済みになる。
     if (treeNodes[id]) return;
     var stack = [];
     var cur = id;
@@ -335,9 +343,7 @@
     while (stack.length > 0) {
       var childId = stack.pop();
       var parentId = items[childId].p;
-      if (parentId !== null && parentId !== undefined && treeNodes[parentId]) {
-        ensureChildrenRendered(treeNodes[parentId], parentId);
-      }
+      ensureChildrenRendered(treeNodes[parentId], parentId);
     }
   }
 
@@ -514,16 +520,6 @@
     });
   });
 
-  function depthOfItem(id) {
-    var d = 0;
-    var cur = items[id].p;
-    while (cur !== null && cur !== undefined) {
-      d++;
-      cur = items[cur].p;
-    }
-    return d;
-  }
-
   document.getElementById('depthExpand').addEventListener('change', function(e) {
     var v = e.target.value;
     if (!v) return;
@@ -535,15 +531,14 @@
       }
     } else {
       var maxD = parseInt(v, 10);
-      // 指定深さの祖先まで実体化
+      // 指定深さに到達する全 item の祖先パスを実体化
       for (var i2 = 0; i2 < items.length; i2++) {
-        if (depthOfItem(i2) <= maxD) ensurePathRendered(i2);
+        if (depthOf[i2] <= maxD) ensurePathRendered(i2);
       }
       for (var i3 = 0; i3 < items.length; i3++) {
         var tn3 = treeNodes[i3];
         if (!tn3) continue;
-        var d = depthOfItem(i3);
-        if (d < maxD) tn3.classList.remove('collapsed');
+        if (depthOf[i3] < maxD) tn3.classList.remove('collapsed');
         else if (!items[i3].r) tn3.classList.add('collapsed');
       }
     }
@@ -651,17 +646,75 @@
     if (it) showDetail(it);
   });
 
-  // ===== 表示列のトグル (N6) =====
+  // ===== 表示列のトグル (N6 / N15) =====
+  var COL_KEYS = ['type', 'ext', 'size', 'count', 'mtime', 'path'];
   var colPanel = document.getElementById('columnPanel');
-  document.getElementById('columnSettings').addEventListener('click', function() {
+  document.getElementById('columnSettings').addEventListener('click', function(e) {
+    e.stopPropagation();
     colPanel.hidden = !colPanel.hidden;
   });
-  colPanel.addEventListener('change', function(e) {
-    if (e.target.dataset && e.target.dataset.col) {
-      var table = document.querySelector('#tableView table');
-      table.classList.toggle('col-' + e.target.dataset.col + '-hidden', !e.target.checked);
+  document.addEventListener('click', function(e) {
+    // パネル外クリックで閉じる
+    if (!colPanel.hidden && !colPanel.contains(e.target)
+        && e.target.id !== 'columnSettings') {
+      colPanel.hidden = true;
     }
   });
+  function applyColumnState() {
+    var table = document.querySelector('#tableView table');
+    if (!table) return;
+    COL_KEYS.forEach(function(c) {
+      var cb = colPanel.querySelector('input[data-col="' + c + '"]');
+      table.classList.toggle('col-' + c + '-hidden', cb && !cb.checked);
+    });
+  }
+  colPanel.addEventListener('change', function(e) {
+    if (e.target.dataset && e.target.dataset.col) {
+      applyColumnState();
+      syncHash();
+    }
+  });
+
+  // ===== CSV エクスポート (24) =====
+  function csvEscape(v) {
+    if (v === null || v === undefined) return '';
+    var s = String(v);
+    if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('\r') >= 0) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  }
+  function exportCsv() {
+    var headers = ['名前', '種別', '拡張子', 'サイズ', 'アイテム数', '更新日時',
+                   'パス', '親フォルダパス', 'リンク先', 'エラー'];
+    var lines = [headers.map(csvEscape).join(',')];
+    for (var i = 0; i < items.length; i++) {
+      var tr = tableRows[i];
+      if (tr && tr.classList.contains('hidden')) continue;  // 現在のフィルタ結果のみ
+      var it = items[i];
+      var typeLabel = it.sl ? 'リンク' : (it.t === 0 ? 'フォルダ' : 'ファイル');
+      var count = it.t === 0 ? (it.c === null ? '' : it.c) : '';
+      lines.push([
+        it.n, typeLabel, it.e ? '.' + it.e : '', it.s || '', count,
+        it.m, it.cp, it.pcp || '', it.slt || '', it.err || ''
+      ].map(csvEscape).join(','));
+    }
+    // Excel が UTF-8 を認識できるよう BOM 付与
+    var blob = new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+    var d = new Date();
+    var ts = '' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate())
+           + '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+    a.href = url;
+    a.download = 'filelist-' + ts + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  }
+  document.getElementById('csvExport').addEventListener('click', exportCsv);
 
   // ===== URL ハッシュで状態保持 (13) =====
   var syncing = false;
@@ -688,6 +741,15 @@
       var btn = document.querySelector('.view-toggle button[data-view="' + s.view + '"]');
       if (btn) btn.click();
     }
+    if (s.cols !== undefined) {
+      // cols は「非表示列」のカンマ区切り。空または未指定 = 全表示。
+      var hidden = s.cols ? s.cols.split(',') : [];
+      COL_KEYS.forEach(function(c) {
+        var cb = colPanel.querySelector('input[data-col="' + c + '"]');
+        if (cb) cb.checked = hidden.indexOf(c) === -1;
+      });
+      applyColumnState();
+    }
     syncing = false;
     if (s.search || s.ext || s.type) applyFilter();
   }
@@ -703,6 +765,11 @@
     if (e) parts.push('ext=' + encodeURIComponent(e));
     if (t) parts.push('type=' + encodeURIComponent(t));
     if (v && v.dataset.view !== 'tree') parts.push('view=' + v.dataset.view);
+    var hiddenCols = COL_KEYS.filter(function(c) {
+      var cb = colPanel.querySelector('input[data-col="' + c + '"]');
+      return cb && !cb.checked;
+    });
+    if (hiddenCols.length > 0) parts.push('cols=' + hiddenCols.join(','));
     var newHash = parts.length ? '#' + parts.join('&') : '';
     if (location.hash !== newHash) {
       history.replaceState(null, '', location.pathname + location.search + newHash);

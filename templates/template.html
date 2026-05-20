@@ -39,10 +39,8 @@
     </select>
     <button id="collapseAll" type="button">全折りたたみ</button>
     <button id="columnSettings" type="button" title="表示列の切替">表示列</button>
+    <button id="csvExport" type="button" title="現在のフィルタ結果を CSV としてダウンロード">CSV</button>
   </div>
-</header>
-<div id="perfWarn">大量のアイテム（<span id="perfCount"></span>）が含まれています。検索やフィルタを活用してください。</div>
-<main>
   <div id="columnPanel" class="column-panel" hidden>
     <strong>表示列</strong>
     <label><input type="checkbox" data-col="type" checked> 種別</label>
@@ -52,6 +50,9 @@
     <label><input type="checkbox" data-col="mtime" checked> 更新日時</label>
     <label><input type="checkbox" data-col="path" checked> パス</label>
   </div>
+</header>
+<div id="perfWarn">大量のアイテム（<span id="perfCount"></span>）が含まれています。検索やフィルタを活用してください。</div>
+<main>
   <div id="treeView" class="view active"></div>
   <div id="tableView" class="view">
     <div class="table-wrap">

@@ -95,10 +95,10 @@ button.copy-btn.detail-btn:hover { background: var(--accent); color: #fff; }
 .targets-list code { background: var(--row); padding: 1px 4px; border-radius: 3px; font-size: 11px; }
 .targets-list .dedup-note { color: var(--accent); cursor: help; }
 
-.column-panel { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; padding: 8px 12px; background: var(--row); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; }
+.column-panel { position: absolute; right: 16px; top: 100%; margin-top: 6px; z-index: 20; display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); min-width: 160px; }
 .column-panel[hidden] { display: none; }
-.column-panel label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
-.column-panel strong { font-size: 12px; margin-right: 8px; }
+.column-panel label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.column-panel strong { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
 
 table.col-type-hidden  th:nth-child(2), table.col-type-hidden  td:nth-child(2),
 table.col-ext-hidden   th:nth-child(3), table.col-ext-hidden   td:nth-child(3),
