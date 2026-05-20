@@ -89,6 +89,8 @@ output:
   # 既定は出力専用ディレクトリ ./reports/ 配下（.gitignore 対象、無ければ自動作成）
   # {datetime} は YYYYMMDD-HHMMSS に置換
   path: "./reports/filelist.html"
+  # HTML の <title> と H1 に表示。複数の出力を区別したい場合に便利。
+  title: "拠点A 月次レポート"
 ```
 
 ### パス記法
@@ -149,7 +151,8 @@ targets:
 - **詳細モーダル**（native `<dialog>`）でファイル名・パスの全量表示、`Esc` / バックドロップ / `×` で閉じる
   - テーブル行のクリックでも開く（ボタン・テキスト選択中は除外）
 - **アクセスエラー表示**: 該当フォルダを赤色＋⚠ アイコンで強調、上部バナーと下部エラー一覧、詳細モーダルにフルメッセージ
-- **URL ハッシュで状態保持**: 検索・フィルタ・ビュー切替が `#view=table&search=log` 形式で URL に反映される
+- **dedup 件数表示**: 複数ターゲットを統合した際の重複件数をヘッダーに「重複により N 件統合」として表示
+- **URL ハッシュで状態保持**: 検索・フィルタ・ビュー切替・表示列が `#view=table&search=log&cols=size,mtime` 形式で URL に反映される
 - ダークモード（OS の `prefers-color-scheme` に追従）
 - **外部依存ゼロ**、`file://` で開いても全機能動作
 
@@ -158,8 +161,8 @@ targets:
 ```
 filelist/
 ├── filelist.py          エントリポイント (argparse / orchestration)
-├── config.py            YAML 読み込み・パス解決
-├── scanner.py           再帰スキャン
+├── config.py            YAML 読み込み・パス解決・重複検証
+├── scanner.py           再帰スキャン・dedup・truncated 検出
 ├── reporter.py          HTML 生成（テンプレート組み立て）
 ├── templates/
 │   ├── template.html    HTML 骨格
@@ -170,7 +173,9 @@ filelist/
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── pytest.ini
-└── tests/               pytest スイート
+├── tests/               pytest スイート (config / scanner / reporter / CLI)
+├── README.md
+└── LICENSE              MIT
 ```
 
 ## シンボリックリンクの扱い
@@ -190,17 +195,18 @@ config 読込時の重複検出（Case 3）では symlink を解決した実体�
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                  # 全テスト実行 (63 ケース)
+pytest                  # 全テスト実行 (121 ケース)
 pytest -v               # 詳細出力
 pytest tests/test_scanner.py    # 個別ファイル
 pytest -k path                  # 名前で絞り込み
 ```
 
-テストカバー範囲:
+テストカバー範囲（121 ケース）:
 
-- `config`: YAML 読み込み・必須項目・型エラー、相対パス解決、UNC / ドライブ / フォワードスラッシュ各種、`{datetime}` 置換
-- `scanner`: `detect_sep` / `unify_sep` / `normalize_root` / `make_path` の境界、`scan_target` の基本動作、`max_depth`、除外パターン、`copy_as` パス変換、シンボリックリンク非追跡、アクセスエラー記録
-- `reporter`: HTML 生成、テンプレート埋め込み、出力先ディレクトリ自動作成、JSON データブロックの XSS 安全性（`</script>` 等のエスケープ）
+- `test_config.py` — YAML 読み込み・必須項目・型エラー、バックスラッシュ拒否、相対パス解決、`{datetime}` 置換、`output.title`、ターゲット重複検出（Case 1/3）、copy_as 整合性検証、`max_depth` バリデーション
+- `test_scanner.py` — `detect_sep` / `unify_sep` / `normalize_root` / `make_path` の境界、`scan_target` 基本動作、`max_depth` と truncated フラグ、複数ターゲットのマージ・dedup（3 ターゲット推移マージ含む）、シンボリックリンク非追跡（自己参照・循環）、tar.gz 等の 2 段拡張子、長い日本語ファイル名、再帰上限を超える深い tree、アクセスエラー記録
+- `test_reporter.py` — HTML 生成、テンプレート埋め込み、出力先ディレクトリ自動作成、JSON データブロックの XSS 安全性（`</script>` 等のエスケープ）、プレースホルダ衝突非再置換、`dedup_skipped` ペイロード、`truncated` フラグ、UI 要素 (depthExpand / columnPanel / csvExport / リンクフィルタ / hash handler / csvEscape) の静的検証、カスタムタイトルと XSS エスケープ
+- `test_cli.py` — 終了コード 0/1/2、YAML 構文エラー、重複ターゲット、copy_as 競合、`-o` 出力上書き、`-v` 詳細出力、`-q` ログ抑制、`--dry-run` 検証専用モード、マージ動作の E2E 検証、フルパス起動
 
 ## 既知の制限 / 設計上の決定
 
