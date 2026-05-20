@@ -31,7 +31,7 @@
       parts.push('<code>' + escapeHtml(t.path) + '</code> (' + depth + ')');
     }
     var html = '対象: ' + parts.join(' / ');
-    var dedup = RAW.dedup_skipped | 0;
+    var dedup = RAW.dedup_skipped || 0;
     if (dedup > 0) {
       html += ' ・ <span class="dedup-note" title="重なるターゲット同士でマージされた件数">' +
               '重複により ' + dedup + ' 件統合</span>';
@@ -323,6 +323,24 @@
     container.appendChild(ul);
   }
 
+  function ensurePathRendered(id) {
+    // 指定 item の祖先パスを必要最小限だけ実体化（フィルタ時のスマート展開用）。
+    if (treeNodes[id]) return;
+    var stack = [];
+    var cur = id;
+    while (cur !== null && cur !== undefined && !treeNodes[cur]) {
+      stack.push(cur);
+      cur = items[cur].p;
+    }
+    while (stack.length > 0) {
+      var childId = stack.pop();
+      var parentId = items[childId].p;
+      if (parentId !== null && parentId !== undefined && treeNodes[parentId]) {
+        ensureChildrenRendered(treeNodes[parentId], parentId);
+      }
+    }
+  }
+
   function ensureAllRendered() {
     // 遅延展開ノードを全て実体化する（フィルタや全展開時に呼ばれる）。
     var stack = [];
@@ -429,8 +447,7 @@
     var type = document.getElementById('typeFilter').value;
     var active = !!(q || ext || type);
 
-    // フィルタはツリー全体の可視性を扱うため、遅延展開された節を全部実体化する。
-    if (active) ensureAllRendered();
+    syncHash();
 
     var N = items.length;
     var matches = new Uint8Array(N);
@@ -458,6 +475,13 @@
       if (matches[j] || hasMD[j]) {
         var pp = items[j].p;
         if (pp !== null && pp !== undefined) hasMD[pp] = 1;
+      }
+    }
+
+    // フィルタ中: マッチした要素の祖先パスのみ実体化（巨大ツリーの初回フィルタ高速化）。
+    if (active) {
+      for (var ri = 0; ri < N; ri++) {
+        if (matches[ri]) ensurePathRendered(ri);
       }
     }
 
@@ -490,13 +514,42 @@
     });
   });
 
-  document.getElementById('expandAll').addEventListener('click', function() {
-    ensureAllRendered();
-    for (var i = 0; i < items.length; i++) {
-      var tn = treeNodes[i];
-      if (tn) tn.classList.remove('collapsed');
+  function depthOfItem(id) {
+    var d = 0;
+    var cur = items[id].p;
+    while (cur !== null && cur !== undefined) {
+      d++;
+      cur = items[cur].p;
     }
+    return d;
+  }
+
+  document.getElementById('depthExpand').addEventListener('change', function(e) {
+    var v = e.target.value;
+    if (!v) return;
+    if (v === 'all') {
+      ensureAllRendered();
+      for (var i = 0; i < items.length; i++) {
+        var tn = treeNodes[i];
+        if (tn) tn.classList.remove('collapsed');
+      }
+    } else {
+      var maxD = parseInt(v, 10);
+      // 指定深さの祖先まで実体化
+      for (var i2 = 0; i2 < items.length; i2++) {
+        if (depthOfItem(i2) <= maxD) ensurePathRendered(i2);
+      }
+      for (var i3 = 0; i3 < items.length; i3++) {
+        var tn3 = treeNodes[i3];
+        if (!tn3) continue;
+        var d = depthOfItem(i3);
+        if (d < maxD) tn3.classList.remove('collapsed');
+        else if (!items[i3].r) tn3.classList.add('collapsed');
+      }
+    }
+    e.target.value = '';  // select をリセットして再選択を可能に
   });
+
   document.getElementById('collapseAll').addEventListener('click', function() {
     for (var i = 0; i < items.length; i++) {
       var tn = treeNodes[i];
@@ -539,14 +592,16 @@
       mtime: function(r) { return items[+r.dataset.id].m; },
       path: function(r) { return items[+r.dataset.id].cp.toLowerCase(); }
     }[col];
-    rows.sort(function(a, b) {
-      var ka = keyFn(a), kb = keyFn(b);
-      if (ka < kb) return -dir;
-      if (ka > kb) return dir;
+    // Schwartzian transform: 比較中に毎回 keyFn を呼ばないよう、行毎にキーを一度だけ計算。
+    var keyed = new Array(rows.length);
+    for (var ki = 0; ki < rows.length; ki++) keyed[ki] = [keyFn(rows[ki]), rows[ki]];
+    keyed.sort(function(a, b) {
+      if (a[0] < b[0]) return -dir;
+      if (a[0] > b[0]) return dir;
       return 0;
     });
     var frag = document.createDocumentFragment();
-    for (var i = 0; i < rows.length; i++) frag.appendChild(rows[i]);
+    for (var i = 0; i < keyed.length; i++) frag.appendChild(keyed[i][1]);
     tbody.appendChild(frag);
   }
 
@@ -595,4 +650,70 @@
     var it = items[+tr.dataset.id];
     if (it) showDetail(it);
   });
+
+  // ===== 表示列のトグル (N6) =====
+  var colPanel = document.getElementById('columnPanel');
+  document.getElementById('columnSettings').addEventListener('click', function() {
+    colPanel.hidden = !colPanel.hidden;
+  });
+  colPanel.addEventListener('change', function(e) {
+    if (e.target.dataset && e.target.dataset.col) {
+      var table = document.querySelector('#tableView table');
+      table.classList.toggle('col-' + e.target.dataset.col + '-hidden', !e.target.checked);
+    }
+  });
+
+  // ===== URL ハッシュで状態保持 (13) =====
+  var syncing = false;
+
+  function readHashState() {
+    var hash = location.hash.slice(1);
+    if (!hash) return {};
+    var out = {};
+    hash.split('&').forEach(function(p) {
+      var eq = p.indexOf('=');
+      if (eq < 0) return;
+      out[decodeURIComponent(p.slice(0, eq))] = decodeURIComponent(p.slice(eq + 1));
+    });
+    return out;
+  }
+
+  function applyHashState() {
+    var s = readHashState();
+    syncing = true;
+    if (s.search !== undefined) document.getElementById('search').value = s.search;
+    if (s.ext !== undefined) document.getElementById('extFilter').value = s.ext;
+    if (s.type !== undefined) document.getElementById('typeFilter').value = s.type;
+    if (s.view === 'table' || s.view === 'tree') {
+      var btn = document.querySelector('.view-toggle button[data-view="' + s.view + '"]');
+      if (btn) btn.click();
+    }
+    syncing = false;
+    if (s.search || s.ext || s.type) applyFilter();
+  }
+
+  function syncHash() {
+    if (syncing) return;
+    var parts = [];
+    var s = document.getElementById('search').value;
+    var e = document.getElementById('extFilter').value;
+    var t = document.getElementById('typeFilter').value;
+    var v = document.querySelector('.view-toggle button.active');
+    if (s) parts.push('search=' + encodeURIComponent(s));
+    if (e) parts.push('ext=' + encodeURIComponent(e));
+    if (t) parts.push('type=' + encodeURIComponent(t));
+    if (v && v.dataset.view !== 'tree') parts.push('view=' + v.dataset.view);
+    var newHash = parts.length ? '#' + parts.join('&') : '';
+    if (location.hash !== newHash) {
+      history.replaceState(null, '', location.pathname + location.search + newHash);
+    }
+  }
+
+  document.querySelectorAll('.view-toggle button').forEach(function(btn) {
+    btn.addEventListener('click', syncHash);
+  });
+  window.addEventListener('hashchange', applyHashState);
+
+  // 初期読込時の hash 反映
+  if (location.hash) applyHashState();
 })();

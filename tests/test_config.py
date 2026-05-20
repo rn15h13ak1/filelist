@@ -318,6 +318,24 @@ targets:
         # 既定: 出力専用ディレクトリ ./reports/ 配下
         assert c.output_path == str(tmp_path / "reports" / "filelist.html")
 
+    def test_default_title(self, make_config):
+        cfg = make_config("""
+targets:
+  - path: /opt/a
+""")
+        c = load_config(str(cfg), default_search_dir=cfg.parent)
+        assert c.title == "filelist"
+
+    def test_custom_title(self, make_config):
+        cfg = make_config("""
+targets:
+  - path: /opt/a
+output:
+  title: "拠点A 月次レポート"
+""")
+        c = load_config(str(cfg), default_search_dir=cfg.parent)
+        assert c.title == "拠点A 月次レポート"
+
     def test_relative_output_resolved_against_config_dir(self, tmp_path: Path, make_config):
         cfg = make_config("""
 targets:

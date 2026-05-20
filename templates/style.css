@@ -95,6 +95,18 @@ button.copy-btn.detail-btn:hover { background: var(--accent); color: #fff; }
 .targets-list code { background: var(--row); padding: 1px 4px; border-radius: 3px; font-size: 11px; }
 .targets-list .dedup-note { color: var(--accent); cursor: help; }
 
+.column-panel { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; padding: 8px 12px; background: var(--row); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; }
+.column-panel[hidden] { display: none; }
+.column-panel label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.column-panel strong { font-size: 12px; margin-right: 8px; }
+
+table.col-type-hidden  th:nth-child(2), table.col-type-hidden  td:nth-child(2),
+table.col-ext-hidden   th:nth-child(3), table.col-ext-hidden   td:nth-child(3),
+table.col-size-hidden  th:nth-child(4), table.col-size-hidden  td:nth-child(4),
+table.col-count-hidden th:nth-child(5), table.col-count-hidden td:nth-child(5),
+table.col-mtime-hidden th:nth-child(6), table.col-mtime-hidden td:nth-child(6),
+table.col-path-hidden  th:nth-child(7), table.col-path-hidden  td:nth-child(7) { display: none; }
+
 .error-banner { display: none; margin-top: 6px; padding: 6px 10px; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4); border-radius: 4px; font-size: 12px; color: var(--err); }
 .error-banner.show { display: inline-block; }
 .error-banner a { color: var(--err); text-decoration: underline; cursor: pointer; }

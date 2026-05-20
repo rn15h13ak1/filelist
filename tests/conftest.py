@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Optional
 
 import pytest
+
+from config import Target
 
 
 def write_config(path: Path, body: str) -> Path:
@@ -49,6 +50,6 @@ def sample_tree(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def make_target(path: str, copy_as: Optional[str] = None, max_depth=None) -> SimpleNamespace:
-    """`scan_target` に渡せる軽量オブジェクト。"""
-    return SimpleNamespace(path=path, copy_as=copy_as, max_depth=max_depth)
+def make_target(path: str, copy_as: Optional[str] = None, max_depth: Optional[int] = None) -> Target:
+    """`scan_target` に渡す ``Target`` インスタンス（型補完用）。"""
+    return Target(path=path, copy_as=copy_as, max_depth=max_depth)

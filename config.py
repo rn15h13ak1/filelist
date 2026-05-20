@@ -51,6 +51,7 @@ class Config:
     targets: List[Target]
     exclude_patterns: List[str] = field(default_factory=list)
     output_path: str = "./reports/filelist.html"
+    title: str = "filelist"
     config_path: Optional[Path] = None
 
 
@@ -272,6 +273,7 @@ def load_config(config_arg: Optional[str], default_search_dir: Path) -> Config:
     output_cfg = raw.get("output") or {}
     # 既定では出力専用ディレクトリ `reports/` 配下に置く (.gitignore 対象)。
     output_path = str(output_cfg.get("path") or "./reports/filelist.html")
+    title = str(output_cfg.get("title") or "filelist")
 
     ts = datetime.datetime.now()
     output_path = output_path.replace("{datetime}", ts.strftime("%Y%m%d-%H%M%S"))
@@ -283,5 +285,6 @@ def load_config(config_arg: Optional[str], default_search_dir: Path) -> Config:
         targets=targets,
         exclude_patterns=exclude_patterns,
         output_path=output_path,
+        title=title,
         config_path=config_path,
     )

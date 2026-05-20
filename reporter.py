@@ -76,6 +76,7 @@ def write_html(
     output_path: str,
     generated_at: str,
     dedup_skipped: int = 0,
+    title: str = "filelist",
 ) -> str:
     """items / errors / targets から HTML を生成して output_path に書き出す。"""
     payload = {
@@ -102,6 +103,7 @@ def write_html(
         "GENERATED_AT": html.escape(generated_at),
         "TOTAL": str(len(items)),
         "DATA_JSON": json_str,
+        "TITLE": html.escape(title),
     })
 
     output_path_p = Path(output_path)

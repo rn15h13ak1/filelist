@@ -12,7 +12,7 @@ import fnmatch
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 
 SIZE_UNITS = ("B", "KB", "MB", "GB", "TB", "PB")
@@ -147,7 +147,7 @@ def scan_target(
     items: List[Dict[str, Any]],
     errors: List[Dict[str, str]],
     seen_paths: Optional[Dict[str, int]] = None,
-    progress_callback: Optional[callable] = None,
+    progress_callback: Optional[Callable[[int], None]] = None,
 ) -> ScanCounters:
     """単一ターゲットを再帰スキャンし、items / errors に追記する。
 
@@ -174,6 +174,12 @@ def scan_target(
     # セパレータを検出して、入力に混在する `/` `\` を統一する。
     scan_sep = detect_sep(raw_path)
     scan_path = normalize_root(unify_sep(raw_path, scan_sep), scan_sep)
+    is_windows_style = scan_sep == "\\"
+
+    def fast_canonical(full_path: str) -> str:
+        """``scan_target`` が make_path で生成したパスは既に正規化されているため
+        ``os.path.normpath`` を省略できる。Windows 風のみ小文字化。"""
+        return full_path.lower() if is_windows_style else full_path
 
     copy_as_raw = _get(target, "copy_as") or scan_path
     copy_sep = detect_sep(copy_as_raw)
@@ -272,7 +278,7 @@ def scan_target(
 
         for entry, st, is_dir, is_link in annotated:
             full_path = make_path(dir_path, entry.name, scan_sep)
-            canonical = canonical_for_dedup(full_path)
+            canonical = fast_canonical(full_path)
 
             # 既出パスは追加せず、フォルダなら既存 id 経由でさらに深く走査
             if canonical in seen_paths:

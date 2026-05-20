@@ -390,6 +390,42 @@ class TestLongFilenames:
         assert item["ext"] == "xlsx"
         assert item["copy_path"].endswith(long_name)
 
+    def test_pathological_long_filename(self, tmp_path: Path):
+        """OS が許す最大近傍のファイル名でも crash しない。"""
+        # macOS / Linux で典型的な最大長 (255 バイト) 近くを生成
+        long_name = "a" * 200 + ".txt"
+        (tmp_path / long_name).write_text("x", encoding="utf-8")
+        items, errors = [], []
+        scan_target(make_target(str(tmp_path)), 0, [], items, errors)
+        assert errors == []
+        assert any(it["name"] == long_name for it in items)
+
+
+class TestSymlinkLoops:
+    def test_self_referencing_symlink_no_infinite_loop(self, tmp_path: Path):
+        """A → A の自己参照リンクでも 1 度だけ記録、無限ループしない。"""
+        try:
+            (tmp_path / "loop").symlink_to(tmp_path / "loop")
+        except (OSError, NotImplementedError):
+            pytest.skip("symlinks not supported")
+        items, errors = [], []
+        scan_target(make_target(str(tmp_path)), 0, [], items, errors)
+        loop_items = [it for it in items if it["name"] == "loop"]
+        assert len(loop_items) == 1
+        assert loop_items[0]["is_symlink"] is True
+
+    def test_cyclic_symlinks_no_infinite_loop(self, tmp_path: Path):
+        """A → B → A の循環リンクでも各リンクが 1 度だけ記録される。"""
+        try:
+            (tmp_path / "a").symlink_to(tmp_path / "b")
+            (tmp_path / "b").symlink_to(tmp_path / "a")
+        except (OSError, NotImplementedError):
+            pytest.skip("symlinks not supported")
+        items, errors = [], []
+        scan_target(make_target(str(tmp_path)), 0, [], items, errors)
+        names = [it["name"] for it in items if it["is_symlink"]]
+        assert sorted(names) == ["a", "b"]
+
 
 class TestIterativeScan:
     def test_deep_nesting_does_not_recurse(self, tmp_path: Path):

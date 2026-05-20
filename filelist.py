@@ -113,7 +113,7 @@ def main() -> int:
         )
         sys.stderr.write(f"Writing {output_path} ...\n")
     write_html(items, errors, config.targets, output_path, generated_at,
-               dedup_skipped=total_skipped)
+               dedup_skipped=total_skipped, title=config.title)
     if not args.quiet:
         sys.stderr.write("Done.\n")
 

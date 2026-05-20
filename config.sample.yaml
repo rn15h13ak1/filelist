@@ -61,3 +61,5 @@ exclude:
 #   "./reports/filelist_{datetime}.html"  実行ごとに別ファイルとして残す
 output:
   path: "./reports/filelist.html"
+  # HTML の <title> と H1 に表示。複数の出力を区別したい場合に便利。
+  # title: "拠点A 月次レポート"
