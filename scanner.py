@@ -10,11 +10,22 @@ from __future__ import annotations
 import datetime
 import fnmatch
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 
 SIZE_UNITS = ("B", "KB", "MB", "GB", "TB", "PB")
+
+# 「拡張子」として 2 段分扱う特例（``archive.tar.gz`` を ``tar.gz`` として認識）。
+COMPOUND_EXTENSIONS = ("tar.gz", "tar.bz2", "tar.xz", "tar.zst")
+
+
+@dataclass(frozen=True)
+class ScanCounters:
+    """``scan_target`` の戻り値。"""
+    added: int = 0
+    skipped: int = 0
 
 
 def detect_sep(path: str) -> str:
@@ -136,7 +147,8 @@ def scan_target(
     items: List[Dict[str, Any]],
     errors: List[Dict[str, str]],
     seen_paths: Optional[Dict[str, int]] = None,
-) -> Dict[str, int]:
+    progress_callback: Optional[callable] = None,
+) -> ScanCounters:
     """単一ターゲットを再帰スキャンし、items / errors に追記する。
 
     target は ``path`` / ``copy_as`` / ``max_depth`` 属性 (または同名の dict キー)
@@ -145,16 +157,19 @@ def scan_target(
     ``seen_paths`` を渡すと複数ターゲット間で重複排除が働く（canonical path → items 上の id）。
     既出パスは再追加されず、フォルダなら既存 id を親としてさらに深く走査する。
 
-    戻り値: ``{"added": 新規追加件数, "skipped": 重複でスキップした件数}``
+    ``progress_callback`` を渡すと、各エントリ追加時に ``callback(items_count)`` で呼ばれる。
+
+    戻り値: ``ScanCounters(added=新規追加件数, skipped=重複でスキップした件数)``
     """
     if seen_paths is None:
         seen_paths = {}
-    counters = {"added": 0, "skipped": 0}
+    added = 0
+    skipped = 0
 
     raw_path = _get(target, "path")
     if not raw_path:
         errors.append({"path": "(empty)", "error": "target has no 'path'"})
-        return counters
+        return ScanCounters()
 
     # セパレータを検出して、入力に混在する `/` `\` を統一する。
     scan_sep = detect_sep(raw_path)
@@ -181,7 +196,7 @@ def scan_target(
         root_stat = os.stat(scan_path)
     except OSError as e:
         errors.append({"path": scan_path, "error": str(e)})
-        return counters
+        return ScanCounters()
 
     root_canonical = canonical_for_dedup(scan_path)
     if root_canonical in seen_paths:
@@ -189,7 +204,7 @@ def scan_target(
         existing_id = seen_paths[root_canonical]
         if items[existing_id].get("truncated"):
             items[existing_id]["truncated"] = False
-        counters["skipped"] += 1
+        skipped += 1
         # 再開地点の copy_path は既存 item のものを使用
         stack: List = [(scan_path, existing_id, items[existing_id]["copy_path"], 1)]
     else:
@@ -213,7 +228,9 @@ def scan_target(
             "truncated": False,
         })
         seen_paths[root_canonical] = root_id
-        counters["added"] += 1
+        added += 1
+        if progress_callback:
+            progress_callback(len(items))
         stack = [(scan_path, root_id, copy_as, 1)]
 
     while stack:
@@ -262,7 +279,7 @@ def scan_target(
                 existing_id = seen_paths[canonical]
                 if items[existing_id].get("truncated"):
                     items[existing_id]["truncated"] = False
-                counters["skipped"] += 1
+                skipped += 1
                 if is_dir and not is_link:
                     if max_depth is None or (depth + 1) <= max_depth:
                         children_to_descend.append(
@@ -274,9 +291,10 @@ def scan_target(
 
             ext = ""
             if not is_dir:
-                name = entry.name
-                if "." in name and not (name.startswith(".") and name.count(".") == 1):
-                    ext = name.rsplit(".", 1)[1].lower()
+                name_l = entry.name.lower()
+                if "." in entry.name and not (entry.name.startswith(".") and entry.name.count(".") == 1):
+                    matched = next((c for c in COMPOUND_EXTENSIONS if name_l.endswith("." + c)), None)
+                    ext = matched if matched else entry.name.rsplit(".", 1)[1].lower()
 
             sym_target = read_symlink_target(entry.path) if is_link else ""
 
@@ -308,7 +326,9 @@ def scan_target(
                 "truncated": is_truncated,
             })
             seen_paths[canonical] = item_id
-            counters["added"] += 1
+            added += 1
+            if progress_callback:
+                progress_callback(len(items))
 
             # symlink は辿らない、max_depth で打ち切りなら descend しない
             if is_dir and not is_link and not is_truncated:
@@ -318,4 +338,4 @@ def scan_target(
         for child in reversed(children_to_descend):
             stack.append(child)
 
-    return counters
+    return ScanCounters(added=added, skipped=skipped)

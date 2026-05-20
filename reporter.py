@@ -75,6 +75,7 @@ def write_html(
     targets: List[Any],
     output_path: str,
     generated_at: str,
+    dedup_skipped: int = 0,
 ) -> str:
     """items / errors / targets から HTML を生成して output_path に書き出す。"""
     payload = {
@@ -89,6 +90,7 @@ def write_html(
             for t in targets
         ],
         "generated_at": generated_at,
+        "dedup_skipped": dedup_skipped,
     }
 
     json_str = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))

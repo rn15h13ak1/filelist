@@ -77,6 +77,20 @@ class TestDataPayload:
         assert payload["errors"] == errors
 
 
+class TestDedupSkipped:
+    def test_dedup_skipped_included_in_payload(self, tmp_path: Path):
+        out = tmp_path / "out.html"
+        write_html([], [], [], str(out), "2026-01-01 00:00:00", dedup_skipped=7)
+        payload = _extract_payload(out.read_text(encoding="utf-8"))
+        assert payload["dedup_skipped"] == 7
+
+    def test_dedup_skipped_default_zero(self, tmp_path: Path):
+        out = tmp_path / "out.html"
+        write_html([], [], [], str(out), "2026-01-01 00:00:00")
+        payload = _extract_payload(out.read_text(encoding="utf-8"))
+        assert payload["dedup_skipped"] == 0
+
+
 class TestTruncatedFlag:
     def test_truncated_flag_compacted_to_tr(self, tmp_path: Path):
         (tmp_path / "a" / "b").mkdir(parents=True)

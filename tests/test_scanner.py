@@ -301,8 +301,8 @@ class TestMergeAndDedup:
         c1 = scan_target(make_target(str(tmp_path / "foo")), 0, [], items, errors, seen_paths=seen)
         c2 = scan_target(make_target(str(tmp_path / "foo" / "sub")), 1, [], items, errors, seen_paths=seen)
         # 2 つ目では sub だけ重複してスキップ
-        assert c2["skipped"] >= 1
-        assert c1["skipped"] == 0
+        assert c2.skipped >= 1
+        assert c1.skipped == 0
 
 
 class TestTruncatedFlag:
@@ -341,6 +341,54 @@ class TestTruncatedFlag:
         scan_target(make_target(str(sample_tree)), 0, [], items, errors)
         # max_depth=None なら truncated=True は出ない
         assert all(not it["truncated"] for it in items)
+
+
+class TestThreeTargetMerge:
+    def test_three_overlapping_targets_merge_transitively(self, tmp_path: Path):
+        """A: /foo, B: /foo/sub, C: /foo/sub/deeper を全部マージして 1 ツリーに。"""
+        (tmp_path / "foo" / "sub" / "deeper").mkdir(parents=True)
+        (tmp_path / "foo" / "sub" / "deeper" / "leaf.txt").write_text("x", encoding="utf-8")
+        items, errors = [], []
+        seen: dict = {}
+        scan_target(make_target(str(tmp_path / "foo"), max_depth=1), 0, [], items, errors, seen_paths=seen)
+        scan_target(make_target(str(tmp_path / "foo" / "sub"), max_depth=1), 1, [], items, errors, seen_paths=seen)
+        scan_target(make_target(str(tmp_path / "foo" / "sub" / "deeper")), 2, [], items, errors, seen_paths=seen)
+
+        # ルートは 1 つだけ
+        roots = [it for it in items if it["is_root"]]
+        assert len(roots) == 1
+        # leaf.txt まで含まれている
+        names = [it["name"] for it in items]
+        assert "leaf.txt" in names
+        # 重複が無い
+        from collections import Counter
+        cnt = Counter(it["copy_path"] for it in items)
+        assert all(c == 1 for c in cnt.values())
+
+
+class TestCompoundExtension:
+    def test_tar_gz_recognized(self, tmp_path: Path):
+        (tmp_path / "archive.tar.gz").write_text("x", encoding="utf-8")
+        (tmp_path / "regular.gz").write_text("x", encoding="utf-8")
+        (tmp_path / "data.tar.bz2").write_text("x", encoding="utf-8")
+        items, errors = [], []
+        scan_target(make_target(str(tmp_path)), 0, [], items, errors)
+        ext_by_name = {it["name"]: it["ext"] for it in items if it["type"] == "file"}
+        assert ext_by_name["archive.tar.gz"] == "tar.gz"
+        assert ext_by_name["data.tar.bz2"] == "tar.bz2"
+        assert ext_by_name["regular.gz"] == "gz"
+
+
+class TestLongFilenames:
+    def test_long_japanese_filename_handled(self, tmp_path: Path):
+        """非常に長い日本語ファイル名でも問題なくスキャン・記録できる。"""
+        long_name = "2026年度第1四半期_顧客管理システム再構築プロジェクト_データベース定義書_ver1.2_山田太郎.xlsx"
+        (tmp_path / long_name).write_text("x", encoding="utf-8")
+        items, errors = [], []
+        scan_target(make_target(str(tmp_path)), 0, [], items, errors)
+        item = next(it for it in items if it["name"] == long_name)
+        assert item["ext"] == "xlsx"
+        assert item["copy_path"].endswith(long_name)
 
 
 class TestIterativeScan:

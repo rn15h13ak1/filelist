@@ -5,12 +5,14 @@ import datetime
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 try:
     import yaml
 except ImportError as e:
     raise ImportError("PyYAML is required. Install with: pip install pyyaml") from e
+
+from scanner import detect_sep, unify_sep
 
 
 class ConfigError(ValueError):
@@ -75,12 +77,6 @@ def _resolve_relative(path_str: str, config_dir: Path) -> str:
     return str((config_dir / path_str).resolve())
 
 
-def _unify_sep_local(path: str, sep: str) -> str:
-    if not path:
-        return path
-    return path.replace("/", "\\") if sep == "\\" else path.replace("\\", "/")
-
-
 def _canonical_path(path: str) -> str:
     """重複検出用にパスを正規化する。
 
@@ -91,7 +87,7 @@ def _canonical_path(path: str) -> str:
     if not path:
         return path
     if path.startswith("//") or (len(path) >= 2 and path[1] == ":"):
-        normalized = os.path.normpath(_unify_sep_local(path, "\\"))
+        normalized = os.path.normpath(unify_sep(path, "\\"))
         return normalized.lower()
     try:
         return str(Path(path).resolve())
@@ -154,25 +150,26 @@ def _validate_overlap_copy_as(targets: List["Target"]) -> None:
                 break  # 最も深い祖先のみチェックすれば推移的にカバーされる
 
 
+def _normalize_with_sep(path_str: str) -> tuple[str, str]:
+    """``(normalized_path, separator)`` を返す。Windows 風はバックスラッシュ統一。"""
+    sep = detect_sep(path_str)
+    return unify_sep(path_str, sep).rstrip(sep), sep
+
+
 def _check_overlap_pair(a: "Target", b: "Target", a_idx: int, b_idx: int) -> None:
     """target a が target b の祖先のときの copy_as 整合性チェック。"""
-    a_path_sep = "\\" if (a.path.startswith("//") or (len(a.path) >= 2 and a.path[1] == ":")) else "/"
-    a_path_norm = _unify_sep_local(a.path, a_path_sep).rstrip(a_path_sep)
-    b_path_norm = _unify_sep_local(b.path, a_path_sep).rstrip(a_path_sep)
+    a_path_norm, a_path_sep = _normalize_with_sep(a.path)
+    b_path_norm = unify_sep(b.path, a_path_sep).rstrip(a_path_sep)
 
     if not b_path_norm.startswith(a_path_norm + a_path_sep):
         return  # 念のため fail-safe
 
     rest = b_path_norm[len(a_path_norm) + 1:]
 
-    a_root_copy = a.copy_as if a.copy_as else a.path
-    a_copy_sep = "\\" if (a_root_copy.startswith("//") or (len(a_root_copy) >= 2 and a_root_copy[1] == ":")) else "/"
-    a_root_copy_norm = _unify_sep_local(a_root_copy, a_copy_sep).rstrip(a_copy_sep)
+    a_root_copy_norm, a_copy_sep = _normalize_with_sep(a.copy_as or a.path)
     expected_b_copy = a_root_copy_norm + a_copy_sep + rest.replace(a_path_sep, a_copy_sep)
 
-    b_own_copy = b.copy_as if b.copy_as else b.path
-    b_own_sep = "\\" if (b_own_copy.startswith("//") or (len(b_own_copy) >= 2 and b_own_copy[1] == ":")) else "/"
-    b_own_norm = _unify_sep_local(b_own_copy, b_own_sep).rstrip(b_own_sep)
+    b_own_norm, _ = _normalize_with_sep(b.copy_as or b.path)
 
     # canonical 化（小文字化等）してから比較
     if _canonical_path(expected_b_copy) != _canonical_path(b_own_norm):
@@ -267,6 +264,11 @@ def load_config(config_arg: Optional[str], default_search_dir: Path) -> Config:
         raise ConfigError("exclude はリスト形式で指定してください")
     exclude_patterns = [str(p) for p in exclude_patterns_raw]
 
+    # 完全同一パス（Case 1, Case 3）はエラー、それ以外は depth 昇順にソート
+    targets = _validate_no_duplicates_and_sort(targets)
+    # 親子で重なるターゲット間で copy_as の翻訳が一致するかチェック
+    _validate_overlap_copy_as(targets)
+
     output_cfg = raw.get("output") or {}
     # 既定では出力専用ディレクトリ `reports/` 配下に置く (.gitignore 対象)。
     output_path = str(output_cfg.get("path") or "./reports/filelist.html")
@@ -276,11 +278,6 @@ def load_config(config_arg: Optional[str], default_search_dir: Path) -> Config:
 
     if not os.path.isabs(output_path):
         output_path = str(config_dir / output_path)
-
-    # 完全同一パス（Case 1, Case 3）はエラー、それ以外は depth 昇順にソート
-    targets = _validate_no_duplicates_and_sort(targets)
-    # 親子で重なるターゲット間で copy_as の翻訳が一致するかチェック
-    _validate_overlap_copy_as(targets)
 
     return Config(
         targets=targets,

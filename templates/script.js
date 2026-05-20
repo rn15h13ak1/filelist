@@ -30,7 +30,13 @@
       var depth = (t.max_depth === null || t.max_depth === undefined) ? '全階層' : ('深さ ' + t.max_depth);
       parts.push('<code>' + escapeHtml(t.path) + '</code> (' + depth + ')');
     }
-    box.innerHTML = '対象: ' + parts.join(' / ');
+    var html = '対象: ' + parts.join(' / ');
+    var dedup = RAW.dedup_skipped | 0;
+    if (dedup > 0) {
+      html += ' ・ <span class="dedup-note" title="重なるターゲット同士でマージされた件数">' +
+              '重複により ' + dedup + ' 件統合</span>';
+    }
+    box.innerHTML = html;
   })();
 
   var extSet = {};
@@ -199,6 +205,23 @@
     return b;
   }
 
+  function ensureChildrenRendered(li, id) {
+    if (li.dataset.childrenRendered === '1') return;
+    var kids = childrenOf[id];
+    if (!kids || kids.length === 0) return;
+    var ul = li.querySelector(':scope > ul');
+    if (!ul) {
+      ul = document.createElement('ul');
+      li.appendChild(ul);
+    }
+    var frag = document.createDocumentFragment();
+    for (var x = 0; x < kids.length; x++) {
+      frag.appendChild(buildTreeNode(kids[x]));
+    }
+    ul.appendChild(frag);
+    li.dataset.childrenRendered = '1';
+  }
+
   function buildTreeNode(id) {
     var it = items[id];
     var li = document.createElement('li');
@@ -219,6 +242,9 @@
     toggle.addEventListener('click', function(e) {
       e.stopPropagation();
       if (!hasKids) return;
+      if (li.classList.contains('collapsed')) {
+        ensureChildrenRendered(li, id);
+      }
       li.classList.toggle('collapsed');
     });
     itemEl.appendChild(toggle);
@@ -281,10 +307,10 @@
 
     li.appendChild(itemEl);
 
-    if (hasKids) {
-      var ul = document.createElement('ul');
-      for (var x = 0; x < kids.length; x++) ul.appendChild(buildTreeNode(kids[x]));
-      li.appendChild(ul);
+    // 子は遅延生成。展開時に ensureChildrenRendered で実体化する。
+    // ただしルートノードは初期表示で展開済みなので即座に生成しておく。
+    if (hasKids && it.r) {
+      ensureChildrenRendered(li, id);
     }
     return li;
   }
@@ -295,6 +321,24 @@
     ul.className = 'tree';
     for (var r = 0; r < rootIds.length; r++) ul.appendChild(buildTreeNode(rootIds[r]));
     container.appendChild(ul);
+  }
+
+  function ensureAllRendered() {
+    // 遅延展開ノードを全て実体化する（フィルタや全展開時に呼ばれる）。
+    var stack = [];
+    for (var i = 0; i < items.length; i++) {
+      if (treeNodes[i] && treeNodes[i].dataset.childrenRendered !== '1') {
+        stack.push(i);
+      }
+    }
+    while (stack.length > 0) {
+      var id = stack.pop();
+      var li = treeNodes[id];
+      if (!li || li.dataset.childrenRendered === '1') continue;
+      ensureChildrenRendered(li, id);
+      var kids = childrenOf[id] || [];
+      for (var k = 0; k < kids.length; k++) stack.push(kids[k]);
+    }
   }
 
   function buildTable() {
@@ -385,6 +429,9 @@
     var type = document.getElementById('typeFilter').value;
     var active = !!(q || ext || type);
 
+    // フィルタはツリー全体の可視性を扱うため、遅延展開された節を全部実体化する。
+    if (active) ensureAllRendered();
+
     var N = items.length;
     var matches = new Uint8Array(N);
     var hasMD = new Uint8Array(N);
@@ -395,8 +442,14 @@
       if (q && it.n.toLowerCase().indexOf(q) === -1 && it.cp.toLowerCase().indexOf(q) === -1) m = 0;
       if (m && ext && it.e !== ext) m = 0;
       if (m && type) {
-        var ts = it.t === 0 ? 'folder' : 'file';
-        if (ts !== type) m = 0;
+        if (type === 'symlink') {
+          if (!it.sl) m = 0;
+        } else if (type === 'folder') {
+          if (it.t !== 0) m = 0;
+        } else if (type === 'file') {
+          // 通常ファイル (symlink 除外、フォルダ除外)
+          if (it.t !== 1 || it.sl) m = 0;
+        }
       }
       matches[i] = m;
     }
@@ -438,6 +491,7 @@
   });
 
   document.getElementById('expandAll').addEventListener('click', function() {
+    ensureAllRendered();
     for (var i = 0; i < items.length; i++) {
       var tn = treeNodes[i];
       if (tn) tn.classList.remove('collapsed');

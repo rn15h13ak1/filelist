@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import sys
+import time
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -35,7 +36,31 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("-o", "--output", help="出力先パスを上書き")
     parser.add_argument("-v", "--verbose", action="store_true", help="ターゲット毎の件数など詳細を出力")
+    parser.add_argument("-q", "--quiet", action="store_true", help="進捗・スキャンログを抑制 (エラーのみ表示)")
+    parser.add_argument("--dry-run", action="store_true", help="設定の検証のみ。スキャンも HTML 出力も行わない")
     return parser.parse_args()
+
+
+def _make_progress_callback(quiet: bool):
+    """1 秒スロットルで件数を stderr に上書き表示するコールバック。"""
+    if quiet or not sys.stderr.isatty():
+        return None
+    state = {"last": 0.0}
+
+    def cb(count: int) -> None:
+        now = time.monotonic()
+        if now - state["last"] >= 1.0:
+            state["last"] = now
+            sys.stderr.write(f"\r  scanned {count:>8,} items ...")
+            sys.stderr.flush()
+
+    return cb
+
+
+def _clear_progress_line() -> None:
+    if sys.stderr.isatty():
+        sys.stderr.write("\r" + " " * 40 + "\r")
+        sys.stderr.flush()
 
 
 def main() -> int:
@@ -47,33 +72,50 @@ def main() -> int:
         sys.stderr.write(f"設定エラー: {e}\n")
         return 2
 
-    sys.stderr.write(f"設定ファイル: {config.config_path}\n")
+    if not args.quiet:
+        sys.stderr.write(f"設定ファイル: {config.config_path}\n")
+
+    if args.dry_run:
+        sys.stderr.write(f"設定 OK: {len(config.targets)} ターゲット、出力先: {config.output_path}\n")
+        return 0
 
     items: list = []
     errors: list = []
     seen_paths: dict = {}
+    total_skipped = 0
+    progress = _make_progress_callback(args.quiet)
 
     for i, target in enumerate(config.targets):
-        sys.stderr.write(f"Scanning [{i + 1}/{len(config.targets)}] {target.path} ...\n")
-        sys.stderr.flush()
+        if not args.quiet:
+            sys.stderr.write(f"Scanning [{i + 1}/{len(config.targets)}] {target.path} ...\n")
+            sys.stderr.flush()
         before_errors = len(errors)
         counters = scan_target(
-            target, i, config.exclude_patterns, items, errors, seen_paths=seen_paths
+            target, i, config.exclude_patterns, items, errors,
+            seen_paths=seen_paths, progress_callback=progress,
         )
+        total_skipped += counters.skipped
+        if not args.quiet:
+            _clear_progress_line()
         if args.verbose:
             sys.stderr.write(
-                f"  -> added={counters.get('added', 0)}, "
-                f"skipped={counters.get('skipped', 0)} (dedup), "
+                f"  -> added={counters.added}, skipped={counters.skipped} (dedup), "
                 f"errors={len(errors) - before_errors}\n"
             )
 
     generated_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     output_path = args.output or config.output_path
 
-    sys.stderr.write(f"Items: {len(items)}, Errors: {len(errors)}\n")
-    sys.stderr.write(f"Writing {output_path} ...\n")
-    write_html(items, errors, config.targets, output_path, generated_at)
-    sys.stderr.write("Done.\n")
+    if not args.quiet:
+        sys.stderr.write(
+            f"Items: {len(items)}, Errors: {len(errors)}, "
+            f"Merged (skipped): {total_skipped}\n"
+        )
+        sys.stderr.write(f"Writing {output_path} ...\n")
+    write_html(items, errors, config.targets, output_path, generated_at,
+               dedup_skipped=total_skipped)
+    if not args.quiet:
+        sys.stderr.write("Done.\n")
 
     # アクセスエラーがあれば終了コード 1 を返す (HTML 自体は生成済み)。
     return 1 if errors else 0

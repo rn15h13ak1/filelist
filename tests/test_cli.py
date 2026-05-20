@@ -146,6 +146,82 @@ output:
         assert "added=" not in result.stderr
 
 
+class TestMergeViaCli:
+    def test_overlapping_targets_produce_single_root(self, tmp_path: Path):
+        (tmp_path / "foo" / "sub").mkdir(parents=True)
+        (tmp_path / "foo" / "sub" / "leaf.txt").write_text("x", encoding="utf-8")
+        cfg = tmp_path / "merge.yaml"
+        cfg.write_text(f"""
+targets:
+  - path: {tmp_path / 'foo'}
+    max_depth: 1
+  - path: {tmp_path / 'foo' / 'sub'}
+output:
+  path: {tmp_path / 'out.html'}
+""", encoding="utf-8")
+        result = _run([str(cfg), "-v"])
+        assert result.returncode == 0, result.stderr
+        assert "skipped=1" in result.stderr  # /foo/sub が dedup された
+        # 生成 HTML の data ブロックを取り出し、ルート数を確認
+        import json
+        import re
+        html_text = (tmp_path / "out.html").read_text(encoding="utf-8")
+        m = re.search(r'<script id="data" type="application/json">(.*?)</script>',
+                      html_text, re.S)
+        payload = json.loads(m.group(1))
+        roots = [it for it in payload["items"] if it["r"] == 1]
+        assert len(roots) == 1
+        assert payload["dedup_skipped"] >= 1
+        names = [it["n"] for it in payload["items"]]
+        assert names.count("leaf.txt") == 1
+
+
+class TestDryRun:
+    def test_dry_run_skips_scan(self, tmp_path: Path):
+        (tmp_path / "src").mkdir()
+        cfg = tmp_path / "c.yaml"
+        cfg.write_text(f"""
+targets:
+  - path: {tmp_path / 'src'}
+output:
+  path: {tmp_path / 'out.html'}
+""", encoding="utf-8")
+        result = _run([str(cfg), "--dry-run"])
+        assert result.returncode == 0
+        assert "設定 OK" in result.stderr
+        # HTML は生成されない
+        assert not (tmp_path / "out.html").exists()
+
+    def test_dry_run_reports_config_error(self, tmp_path: Path):
+        cfg = tmp_path / "bad.yaml"
+        cfg.write_text(r"""
+targets:
+  - path: "Z:\\proj"
+""", encoding="utf-8")
+        result = _run([str(cfg), "--dry-run"])
+        assert result.returncode == 2
+
+
+class TestQuietFlag:
+    def test_quiet_suppresses_scan_logs(self, tmp_path: Path):
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "a.txt").write_text("x", encoding="utf-8")
+        cfg = tmp_path / "c.yaml"
+        cfg.write_text(f"""
+targets:
+  - path: {tmp_path / 'src'}
+output:
+  path: {tmp_path / 'out.html'}
+""", encoding="utf-8")
+        result = _run([str(cfg), "-q"])
+        assert result.returncode == 0, result.stderr
+        # 通常出力は出ない
+        assert "Scanning" not in result.stderr
+        assert "Done." not in result.stderr
+        # HTML は生成される
+        assert (tmp_path / "out.html").exists()
+
+
 class TestFullPathExecution:
     """``python /abs/path/filelist.py`` でも sibling モジュール解決が動く。"""
 

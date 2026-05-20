@@ -30,8 +30,29 @@ python filelist.py                      # CWD/config.yaml もしくは filelist.
 python filelist.py path/to/config.yaml  # 設定ファイル指定
 python filelist.py -o custom.html       # 出力先を上書き
 python filelist.py -v                   # ターゲット毎の件数を出力
+python filelist.py -q                   # ログ抑制（エラーのみ表示）
+python filelist.py --dry-run            # 設定検証のみ（スキャン・HTML 出力なし）
 python /abs/path/to/filelist.py         # フルパス起動も可
 ```
+
+### `-v / --verbose` 出力サンプル
+
+```
+設定ファイル: /path/to/config.yaml
+Scanning [1/2] /share/projectA ...
+  -> added=4827, skipped=0 (dedup), errors=0
+Scanning [2/2] /share/projectA/important ...
+  -> added=83, skipped=42 (dedup), errors=0
+Items: 4910, Errors: 0, Merged (skipped): 42
+Writing ./reports/filelist.html ...
+Done.
+```
+
+- `added`: 当該ターゲットで新規追加されたアイテム数
+- `skipped`: 重複（前のターゲットで既に走査済み）でスキップされたアイテム数
+- `errors`: 当該ターゲットで発生したアクセスエラー件数
+
+進捗バーは TTY 接続時のみ `scanned 12,345 items ...` の形で 1 秒スロットルで表示されます。`-q` で抑制可能。
 
 ### パス解決ルール
 
@@ -151,6 +172,15 @@ filelist/
 ## シンボリックリンクの扱い
 
 シンボリックリンクは **辿りません**（`follow_symlinks=False`）。ディレクトリへのリンクも 1 行のファイルエントリとして記録され、配下は走査されません。リンクループ暴走と権限超え参照を防ぐ既定動作です。
+
+UI 上での見え方:
+
+- **ツリービュー**: 🔗 アイコン + イタリック名 + info に `→ リンク先のパス`
+- **テーブルビュー**: 種別列に `リンク`、サイズ列は空（リンク自体のパス長を出すと誤解を招くため）
+- **詳細モーダル**: 種別「シンボリックリンク」、`リンク先` 行に target パスを表示
+- **種別フィルタ**: `リンクのみ` で symlink だけを絞り込み可能
+
+config 読込時の重複検出（Case 3）では symlink を解決した実体パスで比較するため、`/foo` と `/bar`（`/foo` への symlink）を両方ターゲット指定するとエラーになります。
 
 ## 開発・テスト
 
