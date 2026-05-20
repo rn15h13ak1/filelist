@@ -1,0 +1,175 @@
+# filelist
+
+ローカル / 共有ファイルサーバ（同一ネットワーク）の指定パス配下を再帰走査し、
+**自己完結型の HTML 1 枚** として一覧出力するツール。
+
+出力 HTML をブラウザで開くだけで、検索 / フィルタ / ツリー・テーブル表示 / **パスのワンクリックコピー** / 詳細モーダルが使えます。閲覧側に Python 等のランタイムは不要です。
+
+```
+[Python スクリプト] ──走査──▶ [自己完結 HTML 1 枚] ──開く──▶ [ブラウザで閲覧・コピー]
+   ↑ config.yaml                                              ↑ 配布・共有も可
+```
+
+## 必要環境
+
+- Python 3.9 以上
+- PyYAML
+
+## セットアップ
+
+```bash
+pip install -r requirements.txt
+cp config.sample.yaml config.yaml
+# config.yaml を編集（走査対象パス・除外パターン・出力先）
+```
+
+## 実行
+
+```bash
+python filelist.py                      # CWD/config.yaml もしくは filelist.py 同梱の config.yaml
+python filelist.py path/to/config.yaml  # 設定ファイル指定
+python filelist.py -o custom.html       # 出力先を上書き
+python filelist.py -v                   # ターゲット毎の件数を出力
+python /abs/path/to/filelist.py         # フルパス起動も可
+```
+
+### パス解決ルール
+
+- `-c` 省略時の既定 `config.yaml` は **CWD → filelist.py と同じディレクトリ** の順で探索。
+- `config.yaml` 内の相対パス (`targets[].path`, `output.path`) は **config ファイルのあるディレクトリ基準** で解決。絶対パスはそのまま使用。
+
+### 終了コード
+
+| コード | 意味 |
+|---|---|
+| 0 | 成功（アクセスエラーなし） |
+| 1 | アクセスエラーあり（HTML は生成済み、要確認） |
+| 2 | 設定ファイルエラー |
+| 130 | ユーザ中断（Ctrl-C） |
+
+## 設定ファイル
+
+`config.sample.yaml` を参照。主な項目：
+
+```yaml
+targets:
+  - path: "//server/share/projectA"          # 走査対象パス（複数指定可）
+    copy_as: "//server/share/projectA"       # コピー時に置換する接頭辞（任意）
+    max_depth: null                          # null=全階層 / 1=直下のみ
+  - path: "/local/path"
+    max_depth: 3
+
+exclude:                                      # 除外パターン（glob）
+  - "Thumbs.db"
+  - "*.tmp"
+  - ".git"
+
+output:
+  # 既定は出力専用ディレクトリ ./reports/ 配下（.gitignore 対象、無ければ自動作成）
+  # {datetime} は YYYYMMDD-HHMMSS に置換
+  path: "./reports/filelist.html"
+```
+
+### パス記法
+
+YAML 内のパスは **フォワードスラッシュ `/` のみ** を使用してください。バックスラッシュ表記は YAML のエスケープで壊れやすい（`"\\\\server\\share"` のような多重エスケープが必要）ため、入力段階で拒否します。
+
+| 用途 | 表記例 |
+|---|---|
+| Windows UNC | `"//server/share"` |
+| Windows ドライブ | `"Z:/projectA"` |
+| POSIX | `"/Users/foo"` |
+| 相対パス | `"./sub"` （config.yaml 基準で解決） |
+
+出力（コピーボタンや詳細モーダルのパス）では、Windows スタイル（UNC・ドライブ）と判定されたパスは自動的にバックスラッシュ表記に変換されます。例えば `copy_as: "//server/share/projectA"` と書くと、コピーされる文字列は `\\server\share\projectA\...` になります。
+
+## 複数ターゲットの扱い
+
+複数の `targets` を指定したときの動作:
+
+| 状況 | 動作 |
+|---|---|
+| **完全に同じパス**（書き方が違っても実体が同じ。symlink・`../` 経由を含む） | **エラー**（`ConfigError` + exit 2） |
+| **親子で重なる**（例: `/share` 全体 + `/share/important` 深掘り） | **マージ**して 1 つのツリーに統合。各ファイルは 1 回だけ表示される |
+| **重なるターゲット間で `copy_as` が矛盾** | **エラー**（マージ後の copy_path が不定になるため）。重ねる場合は copy_as を整合させる |
+| **重ならない** | それぞれのパスが独立したツリーとして並ぶ |
+
+ターゲットの記述順は結果に影響しません（内部で **パスの浅い順 → アルファベット順** にソートして処理）。
+
+### max_depth で未走査の領域
+
+`max_depth` を指定すると、その深さを超えるフォルダ配下は走査されません。未走査のフォルダは以下のように明示されます:
+
+- ツリービュー: 名前に点線下線、info に `· 未走査` 表示
+- テーブルビュー: アイテム数列が `…`、ホバーで説明
+- 詳細モーダル: 「走査状態」行に `max_depth に達したため配下のフォルダ・ファイルは走査されていません`
+
+別ターゲットで同じフォルダを **より深く走査** したい場合は、サブパスを追加で `targets` に並べてください。マージ時に未走査フラグは自動で解除されます。
+
+```yaml
+targets:
+  - path: //share/all
+    max_depth: 2          # 全体は浅くスキャン
+  - path: //share/all/important
+    max_depth: null       # 重要フォルダだけ全階層
+```
+
+## 出力 HTML の機能
+
+- **ツリービュー / テーブルビュー** をワンクリックで切替
+- **検索ボックス** でファイル名・パスの部分一致フィルタ
+- **拡張子 / 種別ドロップダウン** で絞り込み
+- **テーブル列クリックでソート**、列ヘッダー固定、操作列を右端に固定
+- **コピーボタン**（ファイル: 親フォルダ／ファイルパス、フォルダ: パス）
+  - `navigator.clipboard` API → `document.execCommand` の 2 段フォールバック
+- **詳細モーダル**（native `<dialog>`）でファイル名・パスの全量表示、`Esc` / バックドロップ / `×` で閉じる
+  - テーブル行のクリックでも開く（ボタン・テキスト選択中は除外）
+- **アクセスエラー表示**: 該当フォルダを赤色＋⚠ アイコンで強調、上部バナーと下部エラー一覧、詳細モーダルにフルメッセージ
+- ダークモード（OS の `prefers-color-scheme` に追従）
+- **外部依存ゼロ**、`file://` で開いても全機能動作
+
+## モジュール構成
+
+```
+filelist/
+├── filelist.py          エントリポイント (argparse / orchestration)
+├── config.py            YAML 読み込み・パス解決
+├── scanner.py           再帰スキャン
+├── reporter.py          HTML 生成（テンプレート組み立て）
+├── templates/
+│   ├── template.html    HTML 骨格
+│   ├── style.css        スタイル
+│   └── script.js        クライアント JavaScript
+├── config.sample.yaml   設定サンプル
+├── config.yaml          実用設定（gitignore 対象）
+├── requirements.txt
+├── requirements-dev.txt
+├── pytest.ini
+└── tests/               pytest スイート
+```
+
+## シンボリックリンクの扱い
+
+シンボリックリンクは **辿りません**（`follow_symlinks=False`）。ディレクトリへのリンクも 1 行のファイルエントリとして記録され、配下は走査されません。リンクループ暴走と権限超え参照を防ぐ既定動作です。
+
+## 開発・テスト
+
+```bash
+pip install -r requirements-dev.txt
+pytest                  # 全テスト実行 (63 ケース)
+pytest -v               # 詳細出力
+pytest tests/test_scanner.py    # 個別ファイル
+pytest -k path                  # 名前で絞り込み
+```
+
+テストカバー範囲:
+
+- `config`: YAML 読み込み・必須項目・型エラー、相対パス解決、UNC / ドライブ / フォワードスラッシュ各種、`{datetime}` 置換
+- `scanner`: `detect_sep` / `unify_sep` / `normalize_root` / `make_path` の境界、`scan_target` の基本動作、`max_depth`、除外パターン、`copy_as` パス変換、シンボリックリンク非追跡、アクセスエラー記録
+- `reporter`: HTML 生成、テンプレート埋め込み、出力先ディレクトリ自動作成、JSON データブロックの XSS 安全性（`</script>` 等のエスケープ）
+
+## 既知の制限 / 設計上の決定
+
+- 大量アイテム（数万件超）の表示は重くなる可能性あり。`max_depth` や検索フィルタの活用を推奨
+- 一度に同一の HTML 出力を上書きする運用では、`{datetime}` テンプレートで履歴を残せる
+- 閲覧側の機能はすべてクライアント JS で動くため、`file://` プロトコルで開いてもクリップボード・検索・モーダルが動作

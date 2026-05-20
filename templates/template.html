@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>filelist</title>
+<style>
+{{STYLE}}
+</style>
+</head>
+<body>
+<header>
+  <h1>filelist</h1>
+  <div class="meta">
+    生成日時: {{GENERATED_AT}} ・ 全件: <span id="totalCount">{{TOTAL}}</span><span class="status" id="visibleStatus"></span>
+    <span class="error-banner" id="errorBanner">⚠ <span id="errorBannerCount"></span> 件のアクセスエラー <a id="errorBannerLink">詳細を見る</a></span>
+    <div class="targets-list" id="targetsList"></div>
+  </div>
+  <div class="controls">
+    <input type="search" id="search" placeholder="ファイル名・パスで検索...">
+    <select id="extFilter"><option value="">すべての拡張子</option></select>
+    <select id="typeFilter">
+      <option value="">種別: すべて</option>
+      <option value="folder">フォルダのみ</option>
+      <option value="file">ファイルのみ</option>
+    </select>
+    <div class="view-toggle" role="tablist">
+      <button data-view="tree" class="active" type="button">ツリー</button>
+      <button data-view="table" type="button">テーブル</button>
+    </div>
+    <button id="expandAll" type="button">全展開</button>
+    <button id="collapseAll" type="button">全折りたたみ</button>
+  </div>
+</header>
+<div id="perfWarn">大量のアイテム（<span id="perfCount"></span>）が含まれています。検索やフィルタを活用してください。</div>
+<main>
+  <div id="treeView" class="view active"></div>
+  <div id="tableView" class="view">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-sort="name">名前</th>
+            <th data-sort="type">種別</th>
+            <th data-sort="ext">拡張子</th>
+            <th data-sort="size">サイズ</th>
+            <th data-sort="count">アイテム数</th>
+            <th data-sort="mtime">更新日時</th>
+            <th data-sort="path">パス</th>
+            <th class="actions-head">操作</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="errorBox"></div>
+</main>
+<dialog id="modal" aria-labelledby="modalTitle">
+  <div class="modal-header">
+    <h2 id="modalTitle"></h2>
+    <button type="button" class="modal-close" aria-label="閉じる">&times;</button>
+  </div>
+  <div class="modal-body">
+    <dl id="modalBody"></dl>
+  </div>
+</dialog>
+<script id="data" type="application/json">{{DATA_JSON}}</script>
+<script>
+{{SCRIPT}}
+</script>
+</body>
+</html>

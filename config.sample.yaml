@@ -1,0 +1,56 @@
+# filelist - 設定ファイルサンプル
+# 実環境向けには config.yaml にコピーして書き換えてください。
+# 相対パスは config.yaml と同じディレクトリ基準で解決されます。
+#
+# パス記法:
+#   YAML 内のパスは **フォワードスラッシュ "/" で統一** してください。
+#   バックスラッシュ表記は YAML のエスケープで壊れやすいため拒否されます。
+#   - Linux / macOS / WSL ローカル: "/Users/foo"
+#   - Windows UNC:                 "//server/share"
+#   - Windows ドライブ:             "Z:/projectA"
+#   - 相対パス:                     "./local"
+#   出力（コピーボタン）では Windows パスは自動的にバックスラッシュに変換されます。
+
+# 複数ターゲットを指定した場合の動作:
+#  - 完全に同じパス（symlink・./.. 経由含めて実体が同じ）→ エラー
+#  - 親子で重なる場合（例: /share 全体 + /share/important 深掘り）→ マージして 1 ツリーに
+#  - 重なるターゲット間で copy_as が矛盾する場合 → エラー
+#  - max_depth で未走査の領域は UI で「未走査」と表示されます
+
+targets:
+  # 例1: ドライブ割り当てで走査し、コピー時は UNC パスに置換
+  - path: "Z:/projectA"
+    copy_as: "//server/share/projectA"          # コピー時は \\server\share\projectA\... として出る
+    max_depth: null                              # null = 全階層（既定）
+
+  # 例2: UNC パスを直接走査し、直下のみ
+  - path: "//server/share/logs"
+    max_depth: 1
+
+  # 例3: 別の共有を全階層走査
+  - path: "//server/share2/projectB"
+    copy_as: "//server/share2/projectB"
+    max_depth: null
+
+  # 例4: ローカル（Linux / macOS / WSL）相対パス
+  # - path: "./local_folder"
+  #   max_depth: 3
+
+# 除外パターン（ファイル名・フォルダ名のワイルドカード）
+exclude:
+  - "Thumbs.db"
+  - "*.tmp"
+  - ".git"
+  - ".DS_Store"
+  - "__pycache__"
+  - "~$*"                                        # Office 一時ファイル
+
+# 出力設定
+# 既定では出力専用ディレクトリ ./reports/ 配下に書き出します（.gitignore 対象）。
+# 親ディレクトリが無ければ自動作成されます。
+# {datetime} は YYYYMMDD-HHMMSS に置換されます。
+# 例:
+#   "./reports/filelist.html"             既定（同名で上書き）
+#   "./reports/filelist_{datetime}.html"  実行ごとに別ファイルとして残す
+output:
+  path: "./reports/filelist.html"
