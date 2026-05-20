@@ -703,7 +703,10 @@
       if (tr && tr.classList.contains('hidden')) continue;  // 現在のフィルタ結果のみ
       var it = items[i];
       var typeLabel = getTypeLabel(it);
-      var count = it.t === 0 ? (it.c === null ? '' : it.c) : '';
+      // truncated folder は count を計測していない (走査未実施)。エラーフォルダは count=null。
+      // 両方とも CSV 上は空欄にする。
+      var count = '';
+      if (it.t === 0 && !it.tr && it.c !== null) count = it.c;
       lines.push([
         it.n, typeLabel, it.e ? '.' + it.e : '', it.s || '', count,
         it.m, it.cp, it.pcp || '', it.slt || '', it.err || ''
