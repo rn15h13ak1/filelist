@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List
 
+from scanner import _get as _attr
+
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 _PLACEHOLDER_RE = re.compile(r"\{\{(\w+)\}\}")
@@ -110,9 +112,3 @@ def write_html(
     ensure_dir(output_path_p.parent)
     output_path_p.write_text(out, encoding="utf-8", newline="\n")
     return output_path
-
-
-def _attr(obj, key: str):
-    if isinstance(obj, dict):
-        return obj.get(key)
-    return getattr(obj, key, None)

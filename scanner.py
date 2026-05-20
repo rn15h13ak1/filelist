@@ -21,6 +21,17 @@ SIZE_UNITS = ("B", "KB", "MB", "GB", "TB", "PB")
 COMPOUND_EXTENSIONS = ("tar.gz", "tar.bz2", "tar.xz", "tar.zst")
 
 
+def is_windows_style_path(path: str) -> bool:
+    """UNC (``\\\\server\\...`` / ``//server/...``) または ``X:`` で始まるか。"""
+    if not path:
+        return False
+    if path.startswith("\\\\") or path.startswith("//"):
+        return True
+    if len(path) >= 2 and path[1] == ":":
+        return True
+    return False
+
+
 @dataclass(frozen=True)
 class ScanCounters:
     """``scan_target`` の戻り値。"""
@@ -31,16 +42,13 @@ class ScanCounters:
 def detect_sep(path: str) -> str:
     """入力パス文字列からセパレータを推定する。
 
-    - UNC（``\\\\server\\share`` または ``//server/share``）→ ``\\``
-    - ドライブレター（``C:`` / ``Z:/...``）→ ``\\``
-    - その他バックスラッシュを含む → ``\\``
+    - Windows 形式（UNC / ドライブレター）→ ``\\``
+    - バックスラッシュを含む → ``\\``
     - それ以外（``/`` を使う POSIX 形式）→ ``/``
     """
     if not path:
         return os.sep
-    if path.startswith("\\\\") or path.startswith("//"):
-        return "\\"
-    if len(path) >= 2 and path[1] == ":":
+    if is_windows_style_path(path):
         return "\\"
     if "\\" in path:
         return "\\"
@@ -135,7 +143,7 @@ def canonical_for_dedup(path: str) -> str:
     """
     if not path:
         return path
-    if path.startswith("\\\\") or path.startswith("//") or (len(path) >= 2 and path[1] == ":"):
+    if is_windows_style_path(path):
         return os.path.normpath(path.replace("/", "\\")).lower()
     return os.path.normpath(path)
 

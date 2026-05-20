@@ -12,7 +12,7 @@ try:
 except ImportError as e:
     raise ImportError("PyYAML is required. Install with: pip install pyyaml") from e
 
-from scanner import detect_sep, unify_sep
+from scanner import detect_sep, is_windows_style_path, unify_sep
 
 
 class ConfigError(ValueError):
@@ -62,9 +62,7 @@ def _is_absolute_path_string(path_str: str) -> bool:
     """
     if not path_str:
         return False
-    if path_str.startswith("//"):
-        return True
-    if len(path_str) >= 2 and path_str[1] == ":":
+    if is_windows_style_path(path_str):
         return True
     return Path(path_str).is_absolute()
 
@@ -87,9 +85,8 @@ def _canonical_path(path: str) -> str:
     """
     if not path:
         return path
-    if path.startswith("//") or (len(path) >= 2 and path[1] == ":"):
-        normalized = os.path.normpath(unify_sep(path, "\\"))
-        return normalized.lower()
+    if is_windows_style_path(path):
+        return os.path.normpath(unify_sep(path, "\\")).lower()
     try:
         return str(Path(path).resolve())
     except OSError:

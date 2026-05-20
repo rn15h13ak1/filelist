@@ -28,6 +28,26 @@
     });
   }
 
+  // ===== 共通ヘルパ: アイテム種別ラベル =====
+  function getTypeLabel(it, longSymlink) {
+    if (it.sl) return longSymlink ? 'シンボリックリンク' : 'リンク';
+    return it.t === 0 ? 'フォルダ' : 'ファイル';
+  }
+
+  function getTypeIcon(it) {
+    if (it.sl) return '\u{1F517}';
+    return it.t === 0 ? '\u{1F4C1}' : '\u{1F4C4}';
+  }
+
+  // ===== 共通ヘルパ: アクションボタン群を container に append =====
+  function appendActionsTo(container, it) {
+    if (it.t === 1) {
+      container.appendChild(makeCopyBtn(it.pcp, '親'));
+    }
+    container.appendChild(makeCopyBtn(it.cp, 'パス'));
+    container.appendChild(makeDetailBtn(it));
+  }
+
   (function renderTargets() {
     if (!targets.length) return;
     var box = document.getElementById('targetsList');
@@ -132,15 +152,14 @@
     modalTitle.innerHTML = '';
     var badge = document.createElement('span');
     badge.className = 'badge' + (item.sl ? ' badge-link' : '');
-    badge.textContent = item.sl ? 'リンク' : (item.t === 0 ? 'フォルダ' : 'ファイル');
+    badge.textContent = getTypeLabel(item);
     modalTitle.appendChild(badge);
     var nameSpan = document.createElement('span');
     nameSpan.textContent = item.n;
     modalTitle.appendChild(nameSpan);
 
     modalBody.innerHTML = '';
-    var typeLabel = item.sl ? 'シンボリックリンク' : (item.t === 0 ? 'フォルダ' : 'ファイル');
-    addRow('種別', typeLabel);
+    addRow('種別', getTypeLabel(item, true));
     addRow('名前', item.n);
     if (item.sl) {
       addRow('リンク先', item.slt || '(不明)');
@@ -258,7 +277,7 @@
 
     var icon = document.createElement('span');
     icon.className = 'icon';
-    icon.textContent = it.sl ? '\u{1F517}' : (it.t === 0 ? '\u{1F4C1}' : '\u{1F4C4}');
+    icon.textContent = getTypeIcon(it);
     itemEl.appendChild(icon);
 
     var name = document.createElement('span');
@@ -303,13 +322,7 @@
 
     var actions = document.createElement('span');
     actions.className = 'actions';
-    if (it.t === 1) {
-      actions.appendChild(makeCopyBtn(it.pcp, '親'));
-      actions.appendChild(makeCopyBtn(it.cp, 'パス'));
-    } else {
-      actions.appendChild(makeCopyBtn(it.cp, 'パス'));
-    }
-    actions.appendChild(makeDetailBtn(it));
+    appendActionsTo(actions, it);
     itemEl.appendChild(actions);
 
     li.appendChild(itemEl);
@@ -390,7 +403,7 @@
       tr.appendChild(tdName);
 
       var tdType = document.createElement('td');
-      tdType.textContent = it.sl ? 'リンク' : (it.t === 0 ? 'フォルダ' : 'ファイル');
+      tdType.textContent = getTypeLabel(it);
       if (it.sl) tdType.title = '→ ' + (it.slt || '(不明)');
       tr.appendChild(tdType);
 
@@ -428,13 +441,7 @@
 
       var tdActions = document.createElement('td');
       tdActions.className = 'actions';
-      if (it.t === 1) {
-        tdActions.appendChild(makeCopyBtn(it.pcp, '親'));
-        tdActions.appendChild(makeCopyBtn(it.cp, 'パス'));
-      } else {
-        tdActions.appendChild(makeCopyBtn(it.cp, 'パス'));
-      }
-      tdActions.appendChild(makeDetailBtn(it));
+      appendActionsTo(tdActions, it);
       tr.appendChild(tdActions);
 
       frag.appendChild(tr);
@@ -649,6 +656,9 @@
   // ===== 表示列のトグル (N6 / N15) =====
   var COL_KEYS = ['type', 'ext', 'size', 'count', 'mtime', 'path'];
   var colPanel = document.getElementById('columnPanel');
+  function getColCheckbox(col) {
+    return colPanel.querySelector('input[data-col="' + col + '"]');
+  }
   document.getElementById('columnSettings').addEventListener('click', function(e) {
     e.stopPropagation();
     colPanel.hidden = !colPanel.hidden;
@@ -664,7 +674,7 @@
     var table = document.querySelector('#tableView table');
     if (!table) return;
     COL_KEYS.forEach(function(c) {
-      var cb = colPanel.querySelector('input[data-col="' + c + '"]');
+      var cb = getColCheckbox(c);
       table.classList.toggle('col-' + c + '-hidden', cb && !cb.checked);
     });
   }
@@ -692,7 +702,7 @@
       var tr = tableRows[i];
       if (tr && tr.classList.contains('hidden')) continue;  // 現在のフィルタ結果のみ
       var it = items[i];
-      var typeLabel = it.sl ? 'リンク' : (it.t === 0 ? 'フォルダ' : 'ファイル');
+      var typeLabel = getTypeLabel(it);
       var count = it.t === 0 ? (it.c === null ? '' : it.c) : '';
       lines.push([
         it.n, typeLabel, it.e ? '.' + it.e : '', it.s || '', count,
@@ -745,7 +755,7 @@
       // cols は「非表示列」のカンマ区切り。空または未指定 = 全表示。
       var hidden = s.cols ? s.cols.split(',') : [];
       COL_KEYS.forEach(function(c) {
-        var cb = colPanel.querySelector('input[data-col="' + c + '"]');
+        var cb = getColCheckbox(c);
         if (cb) cb.checked = hidden.indexOf(c) === -1;
       });
       applyColumnState();
@@ -766,7 +776,7 @@
     if (t) parts.push('type=' + encodeURIComponent(t));
     if (v && v.dataset.view !== 'tree') parts.push('view=' + v.dataset.view);
     var hiddenCols = COL_KEYS.filter(function(c) {
-      var cb = colPanel.querySelector('input[data-col="' + c + '"]');
+      var cb = getColCheckbox(c);
       return cb && !cb.checked;
     });
     if (hiddenCols.length > 0) parts.push('cols=' + hiddenCols.join(','));
