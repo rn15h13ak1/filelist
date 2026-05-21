@@ -790,8 +790,23 @@
   // または CSV エクスポート時にチャンク描画で実体化する。
   // 22万件規模でも初期描画でブラウザがブロックしない設計。
 
-  ['search', 'extFilter', 'typeFilter'].forEach(function(id) {
+  // ext / type はドロップダウン (操作 1 回 = 1 イベント) なので即時適用 OK。
+  ['extFilter', 'typeFilter'].forEach(function(id) {
     document.getElementById(id).addEventListener('input', scheduleFilter);
+  });
+
+  // 検索ボックスは大量データで重いため、リアルタイム適用をやめ明示トリガー方式に。
+  // - 検索ボタンクリックで applyFilter
+  // - Enter キーで applyFilter
+  // - 内蔵の × クリアボタンも 'search' イベントで applyFilter
+  var searchInput = document.getElementById('search');
+  document.getElementById('searchBtn').addEventListener('click', applyFilter);
+  searchInput.addEventListener('search', applyFilter);
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      applyFilter();
+    }
   });
 
   // 「不可も表示」「除外も表示」は body の class を toggle するだけ (CSS で表示制御)。
