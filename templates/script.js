@@ -394,75 +394,127 @@
     }
   }
 
-  function buildTable() {
-    var tbody = document.getElementById('tableBody');
-    var frag = document.createDocumentFragment();
-    for (var i = 0; i < items.length; i++) {
-      var it = items[i];
-      var tr = document.createElement('tr');
-      tr.dataset.id = i;
-      tableRows[i] = tr;
+  function buildTableRow(i) {
+    var it = items[i];
+    var tr = document.createElement('tr');
+    tr.dataset.id = i;
+    tableRows[i] = tr;
 
-      var tdName = document.createElement('td');
-      tdName.className = 'name';
-      tdName.textContent = it.n;
-      tdName.title = it.n;
-      if (it.t === 0) tdName.style.fontWeight = '500';
-      if (it.err) {
-        tr.classList.add('row-error');
-        var warn = document.createElement('span');
-        warn.className = 'item-error';
-        warn.textContent = ' ⚠';
-        warn.title = 'アクセスエラー: ' + it.err;
-        tdName.appendChild(warn);
-      }
-      tr.appendChild(tdName);
-
-      var tdType = document.createElement('td');
-      tdType.textContent = getTypeLabel(it);
-      if (it.sl) tdType.title = '→ ' + (it.slt || '(不明)');
-      tr.appendChild(tdType);
-
-      var tdExt = document.createElement('td');
-      tdExt.textContent = it.e ? '.' + it.e : '';
-      tr.appendChild(tdExt);
-
-      var tdSize = document.createElement('td');
-      tdSize.className = 'num';
-      tdSize.textContent = it.s || '';
-      tr.appendChild(tdSize);
-
-      var tdCount = document.createElement('td');
-      tdCount.className = 'num';
-      if (it.t === 0) {
-        if (it.tr) {
-          tdCount.textContent = '…';
-          tdCount.classList.add('truncated');
-          tdCount.title = 'max_depth により配下は未走査';
-        } else {
-          tdCount.textContent = it.c === null ? '?' : it.c;
-        }
-      }
-      tr.appendChild(tdCount);
-
-      var tdMtime = document.createElement('td');
-      tdMtime.textContent = it.m;
-      tr.appendChild(tdMtime);
-
-      var tdPath = document.createElement('td');
-      tdPath.className = 'path';
-      tdPath.textContent = it.cp;
-      tdPath.title = it.cp;
-      tr.appendChild(tdPath);
-
-      var tdActions = document.createElement('td');
-      tdActions.className = 'actions';
-      appendActionsTo(tdActions, it);
-      tr.appendChild(tdActions);
-
-      frag.appendChild(tr);
+    var tdName = document.createElement('td');
+    tdName.className = 'name';
+    tdName.textContent = it.n;
+    tdName.title = it.n;
+    if (it.t === 0) tdName.style.fontWeight = '500';
+    if (it.err) {
+      tr.classList.add('row-error');
+      var warn = document.createElement('span');
+      warn.className = 'item-error';
+      warn.textContent = ' ⚠';
+      warn.title = 'アクセスエラー: ' + it.err;
+      tdName.appendChild(warn);
     }
-    tbody.appendChild(frag);
+    tr.appendChild(tdName);
+
+    var tdType = document.createElement('td');
+    tdType.textContent = getTypeLabel(it);
+    if (it.sl) tdType.title = '→ ' + (it.slt || '(不明)');
+    tr.appendChild(tdType);
+
+    var tdExt = document.createElement('td');
+    tdExt.textContent = it.e ? '.' + it.e : '';
+    tr.appendChild(tdExt);
+
+    var tdSize = document.createElement('td');
+    tdSize.className = 'num';
+    tdSize.textContent = it.s || '';
+    tr.appendChild(tdSize);
+
+    var tdCount = document.createElement('td');
+    tdCount.className = 'num';
+    if (it.t === 0) {
+      if (it.tr) {
+        tdCount.textContent = '…';
+        tdCount.classList.add('truncated');
+        tdCount.title = 'max_depth により配下は未走査';
+      } else {
+        tdCount.textContent = it.c === null ? '?' : it.c;
+      }
+    }
+    tr.appendChild(tdCount);
+
+    var tdMtime = document.createElement('td');
+    tdMtime.textContent = it.m;
+    tr.appendChild(tdMtime);
+
+    var tdPath = document.createElement('td');
+    tdPath.className = 'path';
+    tdPath.textContent = it.cp;
+    tdPath.title = it.cp;
+    tr.appendChild(tdPath);
+
+    var tdActions = document.createElement('td');
+    tdActions.className = 'actions';
+    appendActionsTo(tdActions, it);
+    tr.appendChild(tdActions);
+    return tr;
+  }
+
+  var tableBuilt = false;
+  var tableBuilding = false;
+
+  // テーブル行は遅延・チャンク描画。22万件規模でも初期表示が止まらない。
+  // 完了時に callback(true) を呼ぶ。すでに構築済みなら同期で callback(true)。
+  function ensureTableBuilt(callback) {
+    if (tableBuilt) { if (callback) callback(true); return; }
+    if (tableBuilding) {
+      // 進行中: 既存の完了処理に乗っかる
+      var existing = window.__tableBuildCallbacks || [];
+      existing.push(callback);
+      window.__tableBuildCallbacks = existing;
+      return;
+    }
+    tableBuilding = true;
+    window.__tableBuildCallbacks = callback ? [callback] : [];
+
+    var tbody = document.getElementById('tableBody');
+    var progress = document.getElementById('tableBuildProgress');
+    if (progress) progress.style.display = 'block';
+
+    var CHUNK = 2000;
+    var i = 0;
+    var N = items.length;
+
+    function buildChunk() {
+      var frag = document.createDocumentFragment();
+      var end = Math.min(i + CHUNK, N);
+      for (; i < end; i++) {
+        frag.appendChild(buildTableRow(i));
+      }
+      tbody.appendChild(frag);
+      if (progress) {
+        progress.textContent = 'テーブル準備中... ' + i.toLocaleString() +
+                               ' / ' + N.toLocaleString();
+      }
+      if (i < N) {
+        // 次のフレームに譲り、ブラウザ操作をブロックしない
+        if (window.requestAnimationFrame) requestAnimationFrame(buildChunk);
+        else setTimeout(buildChunk, 0);
+      } else {
+        tableBuilt = true;
+        tableBuilding = false;
+        if (progress) progress.style.display = 'none';
+        // 構築完了時に現在のフィルタを反映 (一時的に隠したい行があれば適用)
+        var q = document.getElementById('search').value.trim();
+        var ext = document.getElementById('extFilter').value;
+        var type = document.getElementById('typeFilter').value;
+        if (q || ext || type) applyFilter();
+        var cbs = window.__tableBuildCallbacks || [];
+        cbs.forEach(function(cb) { if (cb) cb(true); });
+        window.__tableBuildCallbacks = null;
+      }
+    }
+    if (window.requestAnimationFrame) requestAnimationFrame(buildChunk);
+    else setTimeout(buildChunk, 0);
   }
 
   var filterTimer = null;
@@ -544,6 +596,8 @@
       var v = btn.dataset.view;
       document.querySelectorAll('.view').forEach(function(el) { el.classList.remove('active'); });
       document.getElementById(v + 'View').classList.add('active');
+      // テーブルビュー初表示時に行を構築 (遅延・チャンク)
+      if (v === 'table') ensureTableBuilt();
     });
   });
 
@@ -658,7 +712,9 @@
   }
 
   buildTree();
-  buildTable();
+  // テーブルは初期表示時に構築せず、初めてテーブルビューに切り替えたとき、
+  // または CSV エクスポート時にチャンク描画で実体化する。
+  // 22万件規模でも初期描画でブラウザがブロックしない設計。
 
   ['search', 'extFilter', 'typeFilter'].forEach(function(id) {
     document.getElementById(id).addEventListener('input', scheduleFilter);
@@ -726,6 +782,11 @@
     return s;
   }
   function exportCsv() {
+    // 行 DOM が未構築でもフィルタ状態は反映したいので、構築を待つ。
+    if (!tableBuilt) {
+      ensureTableBuilt(function() { exportCsv(); });
+      return;
+    }
     var headers = ['名前', '種別', '拡張子', 'サイズ', 'アイテム数', '更新日時',
                    'パス', '親フォルダパス', 'リンク先', 'エラー'];
     var lines = [headers.map(csvEscape).join(',')];
@@ -784,7 +845,7 @@
     if (s.errors === '1') document.getElementById('showErrored').checked = true;
     if (s.view === 'table' || s.view === 'tree') {
       var btn = document.querySelector('.view-toggle button[data-view="' + s.view + '"]');
-      if (btn) btn.click();
+      if (btn) btn.click();   // table の場合は内部で ensureTableBuilt() が呼ばれる
     }
     if (s.cols !== undefined) {
       // cols は「非表示列」のカンマ区切り。空または未指定 = 全表示。
