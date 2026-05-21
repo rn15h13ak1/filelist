@@ -51,19 +51,26 @@
   (function renderTargets() {
     if (!targets.length) return;
     var box = document.getElementById('targetsList');
-    var parts = [];
+    var items = [];
     for (var k = 0; k < targets.length; k++) {
       var t = targets[k];
       var depth = (t.max_depth === null || t.max_depth === undefined) ? '全階層' : ('深さ ' + t.max_depth);
-      parts.push('<code>' + escapeHtml(t.path) + '</code> (' + depth + ')');
+      items.push('<div class="target-item"><code>' + escapeHtml(t.path) +
+                 '</code> <span class="muted">(' + depth + ')</span></div>');
     }
-    var html = '対象: ' + parts.join(' / ');
+    var dedupHtml = '';
     var dedup = RAW.dedup_skipped || 0;
     if (dedup > 0) {
-      html += ' ・ <span class="dedup-note" title="重なるターゲット同士でマージされた件数">' +
-              '重複により ' + dedup + ' 件統合</span>';
+      dedupHtml = ' ・ <span class="dedup-note" title="重なるターゲット同士でマージされた件数">' +
+                  '重複により ' + dedup + ' 件統合</span>';
     }
-    box.innerHTML = html;
+    // 既定では折りたたみ。クリックで展開して個別パスを確認できる。
+    box.innerHTML =
+      '対象: <span class="target-count">' + targets.length + ' 件</span>' +
+      ' <details class="targets-detail"><summary>パスを表示</summary>' +
+      '<div class="targets-detail-body">' + items.join('') + '</div>' +
+      '</details>' +
+      dedupHtml;
   })();
 
   var extSet = {};
