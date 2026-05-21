@@ -103,8 +103,47 @@ YAML 内のパスは **フォワードスラッシュ `/` のみ** を使用し�
 | Windows ドライブ | `"Z:/projectA"` |
 | POSIX | `"/Users/foo"` |
 | 相対パス | `"./sub"` （config.yaml 基準で解決） |
+| **glob で複数展開** | `"//server/share/20[23][0-9]/project"` （後述） |
 
 出力（コピーボタンや詳細モーダルのパス）では、Windows スタイル（UNC・ドライブ）と判定されたパスは自動的にバックスラッシュ表記に変換されます。例えば `copy_as: "//server/share/projectA"` と書くと、コピーされる文字列は `\\server\share\projectA\...` になります。
+
+### glob による複数ターゲットの一括指定
+
+`targets[].path` に glob メタ文字（`*`, `?`, `[...]`）を含めると、実在するパスへ自動展開されます。同じ構造のフォルダが多数ある場合に便利です。
+
+```yaml
+targets:
+  # 2020-2039 年フォルダの各 project を一括スキャン
+  - path: "//server/share/20[23][0-9]/project"
+    copy_as: "//server/share/20[23][0-9]/project"     # 同じ位置に同じ glob
+    max_depth: null
+```
+
+**展開ルール:**
+
+- `*` … セパレータ非跨ぎ 0 文字以上
+- `**` … セパレータも跨ぐ 0 文字以上
+- `?` … セパレータ以外 1 文字
+- `[...]` … 文字クラス（`[0-9]`、`[a-z]`、`[abc]` 等）
+- マッチ 0 件は ConfigError
+- `copy_as` を指定する場合は **path と同じ位置に同じ glob** が必要。path で捕捉した値が順番に置換されます
+- `copy_as` を省略すると展開後の path がそのまま使われます
+
+**ユースケース例（年度フォルダ）:**
+
+```yaml
+# 5 つを手で書く代わりに
+targets:
+  - path: "//server/share/2026/project"
+  - path: "//server/share/2027/project"
+  - path: "//server/share/2028/project"
+  - path: "//server/share/2029/project"
+  - path: "//server/share/2030/project"
+
+# 1 行で済む
+targets:
+  - path: "//server/share/20[23][0-9]/project"   # 2020-2039 すべて
+```
 
 ## 複数ターゲットの扱い
 

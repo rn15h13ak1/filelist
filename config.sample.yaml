@@ -43,6 +43,15 @@ targets:
   # - path: "./local_folder"
   #   max_depth: 3
 
+  # 例5: glob パターンで複数年フォルダをまとめて指定
+  # - path: "//server/share/20[23][0-9]/project"           # 2020-2039 にマッチ
+  #   copy_as: "//server/share/20[23][0-9]/project"        # 同じ位置に同じ glob を入れる
+  #
+  # path に glob メタ文字 ( *  ?  [...] ) を含む場合:
+  #  - 実存するパスにのみ展開される (マッチ 0 件はエラー)
+  #  - copy_as を指定する場合は同じ位置に同じ glob が必要 (捕捉値で置換される)
+  #  - copy_as 省略時は展開後の path がそのまま使われる
+
 # 除外パターン（ファイル名・フォルダ名のワイルドカード）
 exclude:
   - "Thumbs.db"

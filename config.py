@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import datetime
+import glob as glob_module
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 try:
     import yaml
@@ -148,6 +150,139 @@ def _validate_overlap_copy_as(targets: List["Target"]) -> None:
                 break  # 最も深い祖先のみチェックすれば推移的にカバーされる
 
 
+_GLOB_META_RE = re.compile(r'[*?\[]')
+
+
+def _has_glob_meta(s: str) -> bool:
+    """glob メタ文字 (``*`` ``?`` ``[``) を含むか。"""
+    return bool(_GLOB_META_RE.search(s))
+
+
+def _glob_to_capture_regex(pattern: str) -> str:
+    """glob → 各メタ文字を capture group に変換した正規表現。
+
+    ``*``  → ``([^/\\\\]*)``  （セパレータを跨がない）
+    ``**`` → ``(.*)``           （セパレータも跨ぐ）
+    ``?``  → ``([^/\\\\])``
+    ``[…]`` → ``(\\[…\\])``    （文字クラスをそのままキャプチャ）
+    """
+    parts = []
+    i, n = 0, len(pattern)
+    while i < n:
+        c = pattern[i]
+        if c == '*':
+            if i + 1 < n and pattern[i + 1] == '*':
+                parts.append(r'(.*)')
+                i += 2
+            else:
+                parts.append(r'([^/\\]*)')
+                i += 1
+        elif c == '?':
+            parts.append(r'([^/\\])')
+            i += 1
+        elif c == '[':
+            j = pattern.find(']', i + 1)
+            if j > i:
+                parts.append('(' + pattern[i:j + 1] + ')')
+                i = j + 1
+            else:
+                parts.append(re.escape(c))
+                i += 1
+        else:
+            parts.append(re.escape(c))
+            i += 1
+    return '^' + ''.join(parts) + r'\Z'
+
+
+def _substitute_glob_template(template: str, captures: Tuple[str, ...]) -> str:
+    """copy_as のテンプレートに含まれる glob メタ文字を path の捕捉値で置換する。
+
+    path と copy_as の glob 数・順序が一致している前提。一致しなければ ConfigError。
+    """
+    out = []
+    cap_idx = 0
+    i, n = 0, len(template)
+
+    def consume_capture(label: str) -> str:
+        nonlocal cap_idx
+        if cap_idx >= len(captures):
+            raise ConfigError(
+                f"copy_as の glob 数が path より多いです (template={template!r})"
+            )
+        v = captures[cap_idx]
+        cap_idx += 1
+        return v
+
+    while i < n:
+        c = template[i]
+        if c == '*':
+            if i + 1 < n and template[i + 1] == '*':
+                out.append(consume_capture('**'))
+                i += 2
+            else:
+                out.append(consume_capture('*'))
+                i += 1
+        elif c == '?':
+            out.append(consume_capture('?'))
+            i += 1
+        elif c == '[':
+            j = template.find(']', i + 1)
+            if j > i:
+                out.append(consume_capture('[]'))
+                i = j + 1
+            else:
+                out.append(c)
+                i += 1
+        else:
+            out.append(c)
+            i += 1
+    if cap_idx != len(captures):
+        raise ConfigError(
+            f"copy_as の glob 数が path より少ないです (template={template!r})"
+        )
+    return ''.join(out)
+
+
+def _expand_glob_targets(targets: List["Target"]) -> List["Target"]:
+    """``path`` に glob メタ文字 (``*`` ``?`` ``[``) を含むターゲットを展開する。
+
+    - マッチ 0 件は ConfigError。
+    - ``copy_as`` を指定する場合は path と同じ glob 構造を持つ必要がある（捕捉値で置換）。
+    - ``copy_as`` 未指定なら展開後の path がそのまま使われる。
+    """
+    out: List[Target] = []
+    for idx, t in enumerate(targets):
+        if not _has_glob_meta(t.path):
+            out.append(t)
+            continue
+
+        matches = sorted(glob_module.glob(t.path))
+        if not matches:
+            raise ConfigError(
+                f"targets[{idx}].path のパターンに一致するパスがありません: {t.path!r}\n"
+                f"  パスは glob として展開されます ( * / ? / [...] )"
+            )
+
+        if t.copy_as and not _has_glob_meta(t.copy_as):
+            raise ConfigError(
+                f"targets[{idx}].path に glob が含まれる場合、copy_as にも対応する glob が必要です\n"
+                f"  path:    {t.path!r}\n"
+                f"  copy_as: {t.copy_as!r}\n"
+                f"  → copy_as に同じ位置の glob を入れるか、copy_as を省略してください"
+            )
+
+        cap_re = re.compile(_glob_to_capture_regex(t.path))
+        for matched in matches:
+            m = cap_re.match(matched)
+            if not m:
+                continue  # defensive
+            captures = m.groups()
+            new_copy_as = (_substitute_glob_template(t.copy_as, captures)
+                           if t.copy_as else None)
+            out.append(Target(path=matched, copy_as=new_copy_as, max_depth=t.max_depth))
+    return out
+
+
 def _normalize_with_sep(path_str: str) -> tuple[str, str]:
     """``(normalized_path, separator)`` を返す。Windows 風はバックスラッシュ統一。"""
     sep = detect_sep(path_str)
@@ -261,6 +396,9 @@ def load_config(config_arg: Optional[str], default_search_dir: Path) -> Config:
     if not isinstance(exclude_patterns_raw, list):
         raise ConfigError("exclude はリスト形式で指定してください")
     exclude_patterns = [str(p) for p in exclude_patterns_raw]
+
+    # path に glob メタ文字を含むターゲットを実存パスへ展開
+    targets = _expand_glob_targets(targets)
 
     # 完全同一パス（Case 1, Case 3）はエラー、それ以外は depth 昇順にソート
     targets = _validate_no_duplicates_and_sort(targets)

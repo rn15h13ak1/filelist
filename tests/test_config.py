@@ -308,6 +308,84 @@ targets:
             load_config(str(cfg), default_search_dir=cfg.parent)
 
 
+class TestGlobExpansion:
+    def _setup_years(self, tmp_path: Path) -> Path:
+        """tmp_path/2026..2030/project/leaf.txt を作る。"""
+        for year in (2026, 2027, 2028, 2029, 2030):
+            p = tmp_path / str(year) / "project"
+            p.mkdir(parents=True)
+            (p / "leaf.txt").write_text("x", encoding="utf-8")
+        # ノイズ: パターンに合わない年
+        (tmp_path / "1999" / "project").mkdir(parents=True)
+        (tmp_path / "abcd" / "project").mkdir(parents=True)
+        return tmp_path
+
+    def test_glob_expands_to_multiple_targets(self, tmp_path: Path, make_config):
+        self._setup_years(tmp_path)
+        cfg = make_config(f"""
+targets:
+  - path: "{tmp_path}/202[6-9]/project"
+""")
+        c = load_config(str(cfg), default_search_dir=cfg.parent)
+        # 2026-2029 の 4 件にマッチ (2030 は対象外, 1999/abcd も除外)
+        assert len(c.targets) == 4
+        paths = [t.path for t in c.targets]
+        for year in (2026, 2027, 2028, 2029):
+            assert any(f"{year}/project" in p for p in paths), paths
+
+    def test_glob_with_character_range(self, tmp_path: Path, make_config):
+        self._setup_years(tmp_path)
+        cfg = make_config(f"""
+targets:
+  - path: "{tmp_path}/20[23][0-9]/project"
+""")
+        c = load_config(str(cfg), default_search_dir=cfg.parent)
+        # 2026-2030 まで全件
+        assert len(c.targets) == 5
+
+    def test_glob_with_copy_as_substitution(self, tmp_path: Path, make_config):
+        self._setup_years(tmp_path)
+        cfg = make_config(f"""
+targets:
+  - path: "{tmp_path}/202[6-9]/project"
+    copy_as: "//server/archive/202[6-9]/project"
+""")
+        c = load_config(str(cfg), default_search_dir=cfg.parent)
+        assert len(c.targets) == 4
+        # 各 target の copy_as にマッチした年が反映される
+        for t in c.targets:
+            year = t.path.rsplit("/project")[0].rsplit("/", 1)[-1]
+            assert t.copy_as == f"//server/archive/{year}/project"
+
+    def test_glob_zero_match_raises(self, tmp_path: Path, make_config):
+        cfg = make_config(f"""
+targets:
+  - path: "{tmp_path}/nonexistent_*/foo"
+""")
+        with pytest.raises(ConfigError, match="一致するパスがありません"):
+            load_config(str(cfg), default_search_dir=cfg.parent)
+
+    def test_glob_with_fixed_copy_as_rejected(self, tmp_path: Path, make_config):
+        self._setup_years(tmp_path)
+        cfg = make_config(f"""
+targets:
+  - path: "{tmp_path}/202[6-9]/project"
+    copy_as: "//server/fixed/path"
+""")
+        with pytest.raises(ConfigError, match="copy_as にも対応する glob"):
+            load_config(str(cfg), default_search_dir=cfg.parent)
+
+    def test_non_glob_path_unchanged(self, tmp_path: Path, make_config):
+        (tmp_path / "literal").mkdir()
+        cfg = make_config(f"""
+targets:
+  - path: "{tmp_path}/literal"
+""")
+        c = load_config(str(cfg), default_search_dir=cfg.parent)
+        assert len(c.targets) == 1
+        assert c.targets[0].path == str(tmp_path / "literal")
+
+
 class TestOutput:
     def test_default_output_path(self, tmp_path: Path, make_config):
         cfg = make_config("""
