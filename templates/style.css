@@ -25,19 +25,20 @@
 html, body { margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Yu Gothic UI", "Hiragino Sans", "Noto Sans CJK JP", sans-serif; background: var(--bg); color: var(--fg); font-size: 14px; }
 
-header { padding: 12px 16px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 10; }
-header h1 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
-.meta { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
-.meta .status { margin-left: 8px; color: var(--accent); }
-.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.controls input[type=search], .controls select, .controls button { padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--fg); font: inherit; }
-.controls input[type=search] { flex: 1; min-width: 240px; max-width: 480px; }
+/* ヘッダーは縦に圧縮。タイトル + メタ情報を 1 行目に inline 配置し、控えめなコントロール行に */
+header { padding: 6px 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 10; }
+header h1 { display: inline; margin: 0; font-size: 13px; font-weight: 600; }
+.meta { color: var(--muted); font-size: 11px; display: inline; margin-left: 8px; }
+.meta .status { margin-left: 4px; color: var(--accent); }
+.controls { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; margin-top: 4px; font-size: 12px; }
+.controls input[type=search], .controls select, .controls button { padding: 3px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--fg); font: inherit; line-height: 1.4; }
+.controls input[type=search] { flex: 1; min-width: 200px; max-width: 420px; }
 .controls button { cursor: pointer; }
 .controls button:hover { background: var(--hover); }
 .view-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
-.view-toggle button { padding: 6px 12px; border: 0; border-radius: 0; background: var(--bg); color: var(--fg); cursor: pointer; }
+.view-toggle button { padding: 3px 10px; border: 0; border-radius: 0; background: var(--bg); color: var(--fg); cursor: pointer; }
 .view-toggle button.active { background: var(--accent); color: #fff; }
-.show-errored-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; padding: 0 4px; }
+.show-errored-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); cursor: pointer; user-select: none; padding: 0 4px; }
 .show-errored-toggle input { margin: 0; cursor: pointer; }
 
 #perfWarn { display: none; padding: 8px 16px; background: rgba(245, 158, 11, 0.15); border-bottom: 1px solid rgba(245, 158, 11, 0.4); font-size: 12px; color: var(--fg); }
@@ -94,7 +95,7 @@ button.copy-btn.detail-btn:hover { background: var(--accent); color: #fff; }
 .errors ul { margin: 0; padding-left: 20px; max-height: 240px; overflow: auto; }
 .errors li { word-break: break-all; }
 
-.meta-info { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.meta-info { display: inline; font-size: 11px; color: var(--muted); margin-left: 8px; }
 .meta-info .dedup-note { color: var(--accent); cursor: help; }
 .meta-info .link-btn { background: none; border: 0; padding: 0 2px; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; }
 .meta-info .link-btn:hover { color: var(--fg); }
@@ -125,7 +126,7 @@ table.col-count-hidden th:nth-child(5), table.col-count-hidden td:nth-child(5),
 table.col-mtime-hidden th:nth-child(6), table.col-mtime-hidden td:nth-child(6),
 table.col-path-hidden  th:nth-child(7), table.col-path-hidden  td:nth-child(7) { display: none; }
 
-.error-banner { display: none; margin-top: 6px; padding: 6px 10px; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4); border-radius: 4px; font-size: 12px; color: var(--err); }
+.error-banner { display: none; margin-left: 8px; padding: 1px 8px; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4); border-radius: 3px; font-size: 11px; color: var(--err); }
 .error-banner.show { display: inline-block; }
 .error-banner a { color: var(--err); text-decoration: underline; cursor: pointer; }
 
