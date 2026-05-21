@@ -91,11 +91,17 @@
       btn.textContent = btn.dataset.orig;
     }, 1200);
   }
+  function quoteForCopy(text) {
+    // パスをダブルクォートで包む。シェル / アドレスバー貼付時にスペース・特殊文字が安全になる。
+    // 内側の " は \" でエスケープ (POSIX シェルの "..."` 内表現と互換)。
+    return '"' + String(text).replace(/"/g, '\\"') + '"';
+  }
   function copyText(text, btn) {
+    var quoted = quoteForCopy(text);
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(function() { setCopied(btn); }, function() { fallbackCopy(text, btn); });
+      navigator.clipboard.writeText(quoted).then(function() { setCopied(btn); }, function() { fallbackCopy(quoted, btn); });
     } else {
-      fallbackCopy(text, btn);
+      fallbackCopy(quoted, btn);
     }
   }
   function fallbackCopy(text, btn) {
