@@ -135,6 +135,94 @@ def _get(target, key: str):
     return getattr(target, key, None)
 
 
+def consolidate_common_roots(items: List[Dict[str, Any]]) -> None:
+    """複数のターゲットルートが共通祖先パスを持つ場合、合成ルートで束ねる。
+
+    例: ``Z:/100`` と ``Z:/200`` → 仮想ルート ``Z:`` を作り、両者をその子に。
+        ``//server/share/foo`` と ``//server/share/bar`` → ``\\\\server\\share`` で束ねる。
+
+    items リストを in-place で書き換える:
+      - 合成ルートを末尾に追加 (id = 元 len(items))
+      - 既存ルートの ``parent`` を合成ルート id に更新、``is_root`` を False に
+      - 既存ルートの ``name`` を共通プレフィックス除去後の相対表現に更新
+        (copy_path はそのまま絶対パスを保持)
+
+    マージしないケース:
+      - ルートが 1 つ以下
+      - セパレータが揃わない (Windows と POSIX が混在)
+      - 共通プレフィックスが意味を持たない (全要素が空など)
+      - 共通プレフィックスがいずれかのルートと一致 (既にそれが親)
+    """
+    root_indices = [i for i, it in enumerate(items) if it.get("is_root")]
+    if len(root_indices) < 2:
+        return
+
+    paths = [items[i]["copy_path"] for i in root_indices]
+
+    # セパレータが揃わない場合はマージしない
+    detected = set()
+    for p in paths:
+        if "\\" in p:
+            detected.add("\\")
+        elif "/" in p:
+            detected.add("/")
+    if len(detected) != 1:
+        return
+    sep = detected.pop()
+
+    # 共通の最長プレフィックスをディレクトリ境界で計算
+    parts_lists = [p.split(sep) for p in paths]
+    common_parts: List[str] = []
+    min_len = min(len(pl) for pl in parts_lists)
+    for level in range(min_len):
+        first = parts_lists[0][level]
+        if all(pl[level] == first for pl in parts_lists):
+            common_parts.append(first)
+        else:
+            break
+
+    # 意味のある共通部分が無ければマージしない
+    if not any(p for p in common_parts):
+        return
+
+    common_path = sep.join(common_parts)
+
+    # 共通プレフィックスがいずれかのルートと完全一致 → そのルートが既に親
+    if common_path in paths:
+        return
+
+    # 合成ルートを末尾に追加
+    synthetic_id = len(items)
+    items.append({
+        "id": synthetic_id,
+        "parent": None,
+        "target": -1,  # 仮想ルート (config の targets には対応しない)
+        "name": common_path,
+        "type": "folder",
+        "ext": "",
+        "copy_path": common_path,
+        "mtime": "",
+        "size_human": "",
+        "count": len(root_indices),
+        "parent_copy_path": "",
+        "is_root": True,
+        "is_symlink": False,
+        "symlink_target": "",
+        "error": "",
+        "truncated": False,
+    })
+
+    # 既存ルートを合成ルートの子に書き換え。表示名は copy_path から共通プレフィックスを
+    # 剥がした相対表現にする (name と copy_path が異なる場合 = copy_as 指定時にも対応)。
+    prefix_with_sep = common_path + sep
+    for rid in root_indices:
+        it = items[rid]
+        it["parent"] = synthetic_id
+        it["is_root"] = False
+        if it["copy_path"].startswith(prefix_with_sep):
+            it["name"] = it["copy_path"][len(prefix_with_sep):]
+
+
 def canonical_for_dedup(path: str) -> str:
     """走査中の重複排除キー。
 

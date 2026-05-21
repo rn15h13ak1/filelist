@@ -15,12 +15,20 @@
     }
   }
 
-  // 深さを事前計算（id は親が先に来る順なので 1 パスで埋まる）。
+  // 深さを事前計算。合成ルートが末尾に追加されるケース等、親 id が子 id より大きい
+  // 可能性があるため、メモ化再帰で順序非依存に計算する。
   var depthOf = new Array(items.length);
-  for (var di = 0; di < items.length; di++) {
-    var dpi = items[di];
-    depthOf[di] = (dpi.p === null || dpi.p === undefined) ? 0 : depthOf[dpi.p] + 1;
+  function _computeDepth(id) {
+    if (depthOf[id] !== undefined) return depthOf[id];
+    var p = items[id].p;
+    if (p === null || p === undefined) {
+      depthOf[id] = 0;
+    } else {
+      depthOf[id] = _computeDepth(p) + 1;
+    }
+    return depthOf[id];
   }
+  for (var di = 0; di < items.length; di++) _computeDepth(di);
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function(c) {

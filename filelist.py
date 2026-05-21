@@ -21,7 +21,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from config import ConfigError, load_config  # noqa: E402
 from reporter import write_html  # noqa: E402
-from scanner import scan_target  # noqa: E402
+from scanner import consolidate_common_roots, scan_target  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -102,6 +102,9 @@ def main() -> int:
                 f"  -> added={counters.added}, skipped={counters.skipped} (dedup), "
                 f"errors={len(errors) - before_errors}\n"
             )
+
+    # 複数ターゲットが共通の親パスを持つ場合は合成ルートで束ねる (例: Z:/100 と Z:/200 → Z:)
+    consolidate_common_roots(items)
 
     generated_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     output_path = args.output or config.output_path

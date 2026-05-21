@@ -343,6 +343,107 @@ class TestTruncatedFlag:
         assert all(not it["truncated"] for it in items)
 
 
+class TestConsolidateCommonRoots:
+    def _make_items_with_roots(self, paths):
+        """指定した path をそれぞれ独立 root として items を作る (テスト用 fixture)。"""
+        from scanner import normalize_root, detect_sep, unify_sep
+        items = []
+        for path in paths:
+            sep = detect_sep(path)
+            np = normalize_root(unify_sep(path, sep), sep)
+            items.append({
+                "id": len(items), "parent": None, "target": 0,
+                "name": np, "type": "folder", "ext": "",
+                "copy_path": np, "mtime": "2026-01-01 00:00:00",
+                "size_human": "", "count": 0, "parent_copy_path": "",
+                "is_root": True, "is_symlink": False, "symlink_target": "",
+                "error": "", "truncated": False,
+            })
+        return items
+
+    def test_two_drive_paths_merged_under_drive(self):
+        from scanner import consolidate_common_roots
+        items = self._make_items_with_roots(["Z:/100", "Z:/200"])
+        consolidate_common_roots(items)
+        # 合成ルートが追加された (= items[2])
+        assert len(items) == 3
+        roots = [it for it in items if it["is_root"]]
+        assert len(roots) == 1
+        assert roots[0]["name"] == "Z:"
+        assert roots[0]["copy_path"] == "Z:"
+        # 元 root は子になり、name は相対表示
+        children = [it for it in items if it["parent"] == roots[0]["id"]]
+        assert sorted(c["name"] for c in children) == ["100", "200"]
+        # copy_path は元の絶対パスを維持
+        assert sorted(c["copy_path"] for c in children) == ["Z:\\100", "Z:\\200"]
+
+    def test_unc_share_paths_merged_under_share(self):
+        from scanner import consolidate_common_roots
+        items = self._make_items_with_roots([
+            "//server/share/foo",
+            "//server/share/bar",
+        ])
+        consolidate_common_roots(items)
+        roots = [it for it in items if it["is_root"]]
+        assert len(roots) == 1
+        assert roots[0]["copy_path"] == "\\\\server\\share"
+        children_names = sorted(it["name"] for it in items if it["parent"] == roots[0]["id"])
+        assert children_names == ["bar", "foo"]
+
+    def test_different_drives_not_merged(self):
+        from scanner import consolidate_common_roots
+        items = self._make_items_with_roots(["Z:/foo", "Y:/bar"])
+        consolidate_common_roots(items)
+        # 共通プレフィックス無し → 何も追加されない
+        assert len(items) == 2
+        assert all(it["is_root"] for it in items)
+
+    def test_single_root_unchanged(self):
+        from scanner import consolidate_common_roots
+        items = self._make_items_with_roots(["Z:/foo"])
+        consolidate_common_roots(items)
+        assert len(items) == 1
+        assert items[0]["is_root"]
+
+    def test_mixed_posix_and_windows_not_merged(self):
+        from scanner import consolidate_common_roots
+        items = self._make_items_with_roots(["Z:/foo", "/Users/bar"])
+        consolidate_common_roots(items)
+        # セパレータが揃わない → マージしない
+        assert len(items) == 2
+        assert all(it["is_root"] for it in items)
+
+    def test_three_paths_under_common_share(self):
+        from scanner import consolidate_common_roots
+        items = self._make_items_with_roots([
+            "//server/share/2026",
+            "//server/share/2027",
+            "//server/share/2028",
+        ])
+        consolidate_common_roots(items)
+        roots = [it for it in items if it["is_root"]]
+        assert len(roots) == 1
+        assert roots[0]["copy_path"] == "\\\\server\\share"
+        kids = sorted(it["name"] for it in items if it["parent"] == roots[0]["id"])
+        assert kids == ["2026", "2027", "2028"]
+
+    def test_posix_paths_with_common_dir(self):
+        from scanner import consolidate_common_roots
+        items = self._make_items_with_roots(["/share/a", "/share/b"])
+        consolidate_common_roots(items)
+        roots = [it for it in items if it["is_root"]]
+        assert len(roots) == 1
+        assert roots[0]["copy_path"] == "/share"
+
+    def test_posix_root_only_common_not_merged(self):
+        """``/foo`` と ``/bar`` → 共通は ``/`` だけ (意味ある共通部無し) → マージしない。"""
+        from scanner import consolidate_common_roots
+        items = self._make_items_with_roots(["/foo", "/bar"])
+        consolidate_common_roots(items)
+        # `/` 以外に共通部分が無いので合成しない
+        assert len(items) == 2
+
+
 class TestThreeTargetMerge:
     def test_three_overlapping_targets_merge_transitively(self, tmp_path: Path):
         """A: /foo, B: /foo/sub, C: /foo/sub/deeper を全部マージして 1 ツリーに。"""
