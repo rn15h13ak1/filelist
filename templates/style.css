@@ -134,6 +134,10 @@ dialog#modal .truncated-note { background: rgba(245, 158, 11, 0.12); border: 1px
 tr.row-error td.name::after, tr.row-error td.name { color: var(--err); }
 .tree li.li-error > .item .name { color: var(--err); }
 
+/* アクセスエラーがあったフォルダは body.hide-errored で一括非表示 (CSS のみ、JS 反復不要) */
+body.hide-errored .tree li.li-error,
+body.hide-errored tbody tr.row-error { display: none; }
+
 dialog#modal { padding: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--fg); max-width: 760px; width: calc(100% - 48px); max-height: 86vh; box-shadow: 0 16px 48px rgba(0,0,0,0.35); overflow: hidden; }
 dialog#modal::backdrop { background: rgba(0,0,0,0.55); }
 dialog#modal .modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 24px 12px; border-bottom: 1px solid var(--border); gap: 12px; }

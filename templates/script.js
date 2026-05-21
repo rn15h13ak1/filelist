@@ -474,10 +474,11 @@
     var q = document.getElementById('search').value.trim().toLowerCase();
     var ext = document.getElementById('extFilter').value;
     var type = document.getElementById('typeFilter').value;
-    var showErrored = document.getElementById('showErrored').checked;
-    // 「不可も表示」が外れていればアクセス不可フォルダを非表示扱いにする
-    var hideErrored = !showErrored;
-    var active = !!(q || ext || type || hideErrored);
+    // 注: アクセス不可フォルダの非表示は body.hide-errored の CSS で実現しているため、
+    // ここでは「inclusion フィルタ (検索 / 拡張子 / 種別)」だけ判定する。
+    // これにより hideErrored だけが ON のときに全アイテムを「マッチ」扱いして
+    // 祖先パスを大量に実体化する重い処理を避ける。
+    var active = !!(q || ext || type);
 
     syncHash();
 
@@ -488,7 +489,6 @@
     for (var i = 0; i < N; i++) {
       var it = items[i];
       var m = 1;
-      if (m && hideErrored && it.err) m = 0;
       if (q && it.n.toLowerCase().indexOf(q) === -1 && it.cp.toLowerCase().indexOf(q) === -1) m = 0;
       if (m && ext && it.e !== ext) m = 0;
       if (m && type) {
@@ -663,7 +663,17 @@
   ['search', 'extFilter', 'typeFilter'].forEach(function(id) {
     document.getElementById(id).addEventListener('input', scheduleFilter);
   });
-  document.getElementById('showErrored').addEventListener('change', scheduleFilter);
+
+  // 「不可も表示」は body の class を toggle するだけ (CSS で表示制御)。
+  // JS の反復処理が無いため、何万件あっても瞬時。
+  function applyHideErroredClass() {
+    var hide = !document.getElementById('showErrored').checked;
+    document.body.classList.toggle('hide-errored', hide);
+  }
+  document.getElementById('showErrored').addEventListener('change', function() {
+    applyHideErroredClass();
+    syncHash();
+  });
 
   document.getElementById('tableBody').addEventListener('click', function(e) {
     if (e.target.closest('button')) return;
@@ -786,7 +796,10 @@
       applyColumnState();
     }
     syncing = false;
-    applyFilter();
+    // hideErrored は body の class なので checkbox の状態を CSS に反映
+    applyHideErroredClass();
+    // 検索 / 拡張子 / 種別フィルタが含まれていれば applyFilter (重い処理)
+    if (s.search || s.ext || s.type) applyFilter();
   }
 
   function syncHash() {
@@ -818,7 +831,9 @@
   });
   window.addEventListener('hashchange', applyHashState);
 
-  // 初期読込時の hash 反映 (なければ既定フィルタ＝アクセス不可フォルダ非表示 を適用)
+  // 初期表示: アクセス不可フォルダは body.hide-errored の CSS 一発で隠す
+  applyHideErroredClass();
+
+  // URL ハッシュがあれば状態復元 (filter / view / cols 等)
   if (location.hash) applyHashState();
-  else applyFilter();
 })();
