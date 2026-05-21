@@ -57,30 +57,59 @@
     container.appendChild(makeDetailBtn(it));
   }
 
-  (function renderTargets() {
-    if (!targets.length) return;
-    var box = document.getElementById('targetsList');
-    var items = [];
-    for (var k = 0; k < targets.length; k++) {
-      var t = targets[k];
-      var depth = (t.max_depth === null || t.max_depth === undefined) ? '全階層' : ('深さ ' + t.max_depth);
-      items.push('<div class="target-item"><code>' + escapeHtml(t.path) +
-                 '</code> <span class="muted">(' + depth + ')</span></div>');
+  (function renderMetaInfo() {
+    var box = document.getElementById('metaInfo');
+    var parts = [];
+    if (targets.length) {
+      parts.push('対象: ' + targets.length + ' 件 ' +
+                 '<button type="button" class="link-btn" id="showTargetsBtn" ' +
+                 'title="対象パス一覧をモーダルで表示">パスを表示</button>');
     }
-    var dedupHtml = '';
     var dedup = RAW.dedup_skipped || 0;
     if (dedup > 0) {
-      dedupHtml = ' ・ <span class="dedup-note" title="重なるターゲット同士でマージされた件数">' +
-                  '重複により ' + dedup + ' 件統合</span>';
+      parts.push('<span class="dedup-note" title="重なるターゲット同士でマージされた件数">' +
+                 '重複により ' + dedup + ' 件統合</span>');
     }
-    // 既定では折りたたみ。クリックで展開して個別パスを確認できる。
-    box.innerHTML =
-      '対象: <span class="target-count">' + targets.length + ' 件</span>' +
-      ' <details class="targets-detail"><summary>パスを表示</summary>' +
-      '<div class="targets-detail-body">' + items.join('') + '</div>' +
-      '</details>' +
-      dedupHtml;
+    box.innerHTML = parts.join(' ・ ');
   })();
+
+  // ===== 共通の list modal =====
+  var listModalEl = document.getElementById('listModal');
+  function showListModal(title, html) {
+    document.getElementById('listModalTitle').textContent = title;
+    document.getElementById('listModalBody').innerHTML = html;
+    if (typeof listModalEl.showModal === 'function') {
+      if (!listModalEl.open) listModalEl.showModal();
+    } else {
+      listModalEl.setAttribute('open', '');
+    }
+  }
+  function closeListModal() {
+    if (typeof listModalEl.close === 'function' && listModalEl.open) listModalEl.close();
+    else listModalEl.removeAttribute('open');
+  }
+  listModalEl.addEventListener('click', function(e) {
+    if (e.target.closest('.modal-close') || e.target === listModalEl) closeListModal();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && listModalEl.open) {
+      e.preventDefault();
+      closeListModal();
+    }
+  });
+
+  // 対象パス一覧ボタン
+  var targetsBtn = document.getElementById('showTargetsBtn');
+  if (targetsBtn) {
+    targetsBtn.addEventListener('click', function() {
+      var lis = targets.map(function(t) {
+        var depth = (t.max_depth === null || t.max_depth === undefined) ? '全階層' : '深さ ' + t.max_depth;
+        return '<li><code>' + escapeHtml(t.path) + '</code>' +
+               '<span class="item-meta">(' + depth + ')</span></li>';
+      }).join('');
+      showListModal('対象パス (' + targets.length + ')', lis);
+    });
+  }
 
   var extSet = {};
   for (var i2 = 0; i2 < items.length; i2++) {
@@ -712,27 +741,16 @@
   }
 
   if (errors.length > 0) {
-    var box = document.getElementById('errorBox');
-    var div = document.createElement('div');
-    div.id = 'errorListSection';
-    div.className = 'errors';
-    var h2 = document.createElement('h2');
-    h2.textContent = 'アクセスできなかった項目 (' + errors.length + ')';
-    div.appendChild(h2);
-    var ul = document.createElement('ul');
-    for (var ei = 0; ei < errors.length; ei++) {
-      var li = document.createElement('li');
-      li.textContent = errors[ei].path + ' — ' + errors[ei].error;
-      ul.appendChild(li);
-    }
-    div.appendChild(ul);
-    box.appendChild(div);
-
     var banner = document.getElementById('errorBanner');
     document.getElementById('errorBannerCount').textContent = errors.length;
     banner.classList.add('show');
+    // 詳細はモーダルで表示 (画面下部の常駐セクションは廃止)
     document.getElementById('errorBannerLink').addEventListener('click', function() {
-      document.getElementById('errorListSection').scrollIntoView({behavior: 'smooth', block: 'start'});
+      var lis = errors.map(function(e) {
+        return '<li><code>' + escapeHtml(e.path) + '</code>' +
+               '<div class="err-msg">' + escapeHtml(e.error) + '</div></li>';
+      }).join('');
+      showListModal('アクセスできなかった項目 (' + errors.length + ')', lis);
     });
   }
 

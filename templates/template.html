@@ -14,7 +14,7 @@
   <div class="meta">
     生成日時: {{GENERATED_AT}} ・ 全件: <span id="totalCount">{{TOTAL}}</span><span class="status" id="visibleStatus"></span>
     <span class="error-banner" id="errorBanner">⚠ <span id="errorBannerCount"></span> 件のアクセスエラー <a id="errorBannerLink">詳細を見る</a></span>
-    <div class="targets-list" id="targetsList"></div>
+    <div class="meta-info" id="metaInfo"></div>
   </div>
   <div class="controls">
     <input type="search" id="search" placeholder="ファイル名・パスで検索...">
@@ -80,8 +80,16 @@
       </table>
     </div>
   </div>
-  <div id="errorBox"></div>
 </main>
+<dialog id="listModal" aria-labelledby="listModalTitle">
+  <div class="modal-header">
+    <h2 id="listModalTitle"></h2>
+    <button type="button" class="modal-close" aria-label="閉じる">&times;</button>
+  </div>
+  <div class="modal-body">
+    <ul id="listModalBody" class="info-list"></ul>
+  </div>
+</dialog>
 <dialog id="modal" aria-labelledby="modalTitle">
   <div class="modal-header">
     <h2 id="modalTitle"></h2>

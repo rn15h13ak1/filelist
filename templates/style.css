@@ -94,18 +94,24 @@ button.copy-btn.detail-btn:hover { background: var(--accent); color: #fff; }
 .errors ul { margin: 0; padding-left: 20px; max-height: 240px; overflow: auto; }
 .errors li { word-break: break-all; }
 
-.targets-list { font-size: 11px; color: var(--muted); margin-top: 4px; }
-.targets-list code { background: var(--row); padding: 1px 4px; border-radius: 3px; font-size: 11px; word-break: break-all; }
-.targets-list .dedup-note { color: var(--accent); cursor: help; }
-.targets-list .target-count { color: var(--fg); }
-.targets-list .muted { color: var(--muted); }
-.targets-list .targets-detail { display: inline; }
-.targets-list .targets-detail summary { display: inline; cursor: pointer; color: var(--accent); list-style: none; }
-.targets-list .targets-detail summary::-webkit-details-marker { display: none; }
-.targets-list .targets-detail summary::before { content: '▶ '; font-size: 9px; vertical-align: 1px; }
-.targets-list .targets-detail[open] summary::before { content: '▼ '; }
-.targets-list .targets-detail-body { display: block; margin: 6px 0 0; padding: 8px 12px; background: var(--row); border: 1px solid var(--border); border-radius: 4px; max-height: 220px; overflow: auto; }
-.targets-list .target-item { padding: 1px 0; }
+.meta-info { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.meta-info .dedup-note { color: var(--accent); cursor: help; }
+.meta-info .link-btn { background: none; border: 0; padding: 0 2px; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; }
+.meta-info .link-btn:hover { color: var(--fg); }
+
+dialog#listModal { padding: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--fg); max-width: 760px; width: calc(100% - 48px); max-height: 86vh; box-shadow: 0 16px 48px rgba(0,0,0,0.35); overflow: hidden; }
+dialog#listModal::backdrop { background: rgba(0,0,0,0.55); }
+dialog#listModal .modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 24px 12px; border-bottom: 1px solid var(--border); gap: 12px; }
+dialog#listModal .modal-header h2 { margin: 0; font-size: 15px; flex: 1; min-width: 0; }
+dialog#listModal .modal-close { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 24px; line-height: 1; padding: 4px 10px; border-radius: 4px; flex-shrink: 0; font-family: inherit; }
+dialog#listModal .modal-close:hover { color: var(--fg); background: var(--hover); }
+dialog#listModal .modal-body { padding: 16px 24px 20px; overflow: auto; max-height: calc(86vh - 60px); }
+ul.info-list { list-style: none; padding: 0; margin: 0; font-size: 12px; }
+ul.info-list li { padding: 6px 8px; border-bottom: 1px solid var(--border); word-break: break-all; }
+ul.info-list li:last-child { border-bottom: 0; }
+ul.info-list code { background: var(--row); padding: 1px 4px; border-radius: 3px; }
+ul.info-list .item-meta { color: var(--muted); margin-left: 8px; font-size: 11px; }
+ul.info-list .err-msg { color: var(--err); margin-top: 2px; font-size: 11px; }
 
 .column-panel { position: absolute; right: 16px; top: 100%; margin-top: 6px; z-index: 20; display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); min-width: 160px; }
 .column-panel[hidden] { display: none; }
