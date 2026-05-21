@@ -15,6 +15,22 @@
     }
   }
 
+  // 表示順をフォルダ優先 + 名前昇順で正規化。
+  // scan_target 内の sort と整合させ、合成ルート下や複数ルートでも一貫した並びにする。
+  function sortItemIds(ids) {
+    ids.sort(function(a, b) {
+      var ia = items[a], ib = items[b];
+      var fa = (ia.t === 0 && !ia.sl) ? 0 : 1;
+      var fb = (ib.t === 0 && !ib.sl) ? 0 : 1;
+      if (fa !== fb) return fa - fb;
+      var na = ia.n.toLowerCase();
+      var nb = ib.n.toLowerCase();
+      return na < nb ? -1 : (na > nb ? 1 : 0);
+    });
+  }
+  sortItemIds(rootIds);
+  for (var _p in childrenOf) sortItemIds(childrenOf[_p]);
+
   // 深さを事前計算。合成ルートが末尾に追加されるケース等、親 id が子 id より大きい
   // 可能性があるため、メモ化再帰で順序非依存に計算する。
   var depthOf = new Array(items.length);
@@ -98,11 +114,20 @@
     }
   });
 
+  function sortByPathInsensitive(list) {
+    return list.slice().sort(function(a, b) {
+      var pa = (a.path || '').toLowerCase();
+      var pb = (b.path || '').toLowerCase();
+      return pa < pb ? -1 : (pa > pb ? 1 : 0);
+    });
+  }
+
   // 対象パス一覧ボタン
   var targetsBtn = document.getElementById('showTargetsBtn');
   if (targetsBtn) {
     targetsBtn.addEventListener('click', function() {
-      var lis = targets.map(function(t) {
+      var sorted = sortByPathInsensitive(targets);
+      var lis = sorted.map(function(t) {
         var depth = (t.max_depth === null || t.max_depth === undefined) ? '全階層' : '深さ ' + t.max_depth;
         return '<li><code>' + escapeHtml(t.path) + '</code>' +
                '<span class="item-meta">(' + depth + ')</span></li>';
@@ -746,7 +771,8 @@
     banner.classList.add('show');
     // 詳細はモーダルで表示 (画面下部の常駐セクションは廃止)
     document.getElementById('errorBannerLink').addEventListener('click', function() {
-      var lis = errors.map(function(e) {
+      var sorted = sortByPathInsensitive(errors);
+      var lis = sorted.map(function(e) {
         return '<li><code>' + escapeHtml(e.path) + '</code>' +
                '<div class="err-msg">' + escapeHtml(e.error) + '</div></li>';
       }).join('');
