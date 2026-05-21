@@ -435,3 +435,45 @@ output:
         # YYYYMMDD-HHMMSS = 15 chars (8 + 1 + 6)
         import re
         assert re.search(r"out_\d{8}-\d{6}\.html$", c.output_path)
+
+    def test_output_path_list_accepted(self, tmp_path: Path, make_config):
+        cfg = make_config("""
+targets:
+  - path: /opt/a
+output:
+  path:
+    - "filelist.html"
+    - "filelist_{datetime}.html"
+""")
+        c = load_config(str(cfg), default_search_dir=cfg.parent)
+        assert len(c.output_paths) == 2
+        assert c.output_paths[0] == str(tmp_path / "filelist.html")
+        # 2 つ目は {datetime} 置換済み
+        import re
+        assert re.search(
+            r"filelist_\d{8}-\d{6}\.html$", c.output_paths[1]
+        )
+        # output_path プロパティは先頭
+        assert c.output_path == c.output_paths[0]
+
+    def test_output_path_empty_list_rejected(self, make_config):
+        cfg = make_config("""
+targets:
+  - path: /opt/a
+output:
+  path: []
+""")
+        with pytest.raises(ConfigError, match="1 件以上"):
+            load_config(str(cfg), default_search_dir=cfg.parent)
+
+    def test_output_path_non_string_in_list_rejected(self, make_config):
+        cfg = make_config("""
+targets:
+  - path: /opt/a
+output:
+  path:
+    - "ok.html"
+    - 12345
+""")
+        with pytest.raises(ConfigError, match="文字列"):
+            load_config(str(cfg), default_search_dir=cfg.parent)

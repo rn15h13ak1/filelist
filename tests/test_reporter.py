@@ -137,6 +137,25 @@ class TestCustomTitle:
         assert "&lt;img" in html_text  # HTML エスケープされている
 
 
+class TestMultipleOutputPaths:
+    def test_writes_to_each_path_with_same_content(self, tmp_path: Path):
+        out1 = tmp_path / "filelist.html"
+        out2 = tmp_path / "snapshots" / "filelist_20260101-120000.html"
+        written = write_html([], [], [], [str(out1), str(out2)], "2026-01-01 00:00:00")
+        assert isinstance(written, list)
+        assert len(written) == 2
+        # 両ファイルが存在し、内容が同一
+        assert out1.is_file()
+        assert out2.is_file()
+        assert out1.read_text(encoding="utf-8") == out2.read_text(encoding="utf-8")
+
+    def test_single_string_still_works(self, tmp_path: Path):
+        out = tmp_path / "single.html"
+        result = write_html([], [], [], str(out), "2026-01-01 00:00:00")
+        assert isinstance(result, str)
+        assert out.is_file()
+
+
 class TestDedupSkipped:
     def test_dedup_skipped_included_in_payload(self, tmp_path: Path):
         out = tmp_path / "out.html"

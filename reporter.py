@@ -77,12 +77,16 @@ def write_html(
     items: List[Dict[str, Any]],
     errors: List[Dict[str, str]],
     targets: List[Any],
-    output_path: str,
+    output_path,  # str or List[str]
     generated_at: str,
     dedup_skipped: int = 0,
     title: str = "filelist",
-) -> str:
-    """items / errors / targets から HTML を生成して output_path に書き出す。"""
+):
+    """items / errors / targets から HTML を生成して指定パスへ書き出す。
+
+    ``output_path`` は文字列または文字列リスト。リストの場合は同一内容を全パスに書く。
+    戻り値: 単一指定なら str、リストなら書き出したパスの List[str]。
+    """
     payload = {
         "items": _compact_items(items),
         "errors": errors,
@@ -110,7 +114,14 @@ def write_html(
         "TITLE": html.escape(title),
     })
 
-    output_path_p = Path(output_path)
-    ensure_dir(output_path_p.parent)
-    output_path_p.write_text(out, encoding="utf-8", newline="\n")
-    return output_path
+    is_single = isinstance(output_path, str)
+    paths = [output_path] if is_single else list(output_path)
+
+    written: List[str] = []
+    for p in paths:
+        pp = Path(p)
+        ensure_dir(pp.parent)
+        pp.write_text(out, encoding="utf-8", newline="\n")
+        written.append(str(pp))
+
+    return written[0] if is_single else written

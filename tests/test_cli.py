@@ -146,6 +146,27 @@ output:
         assert "added=" not in result.stderr
 
 
+class TestMultipleOutputPaths:
+    def test_two_outputs_same_content(self, tmp_path: Path):
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "a.txt").write_text("x", encoding="utf-8")
+        cfg = tmp_path / "c.yaml"
+        cfg.write_text(f"""
+targets:
+  - path: {tmp_path / 'src'}
+output:
+  path:
+    - "{tmp_path / 'filelist.html'}"
+    - "{tmp_path / 'filelist_archive.html'}"
+""", encoding="utf-8")
+        result = _run([str(cfg)])
+        assert result.returncode == 0, result.stderr
+        f1 = tmp_path / "filelist.html"
+        f2 = tmp_path / "filelist_archive.html"
+        assert f1.exists() and f2.exists()
+        assert f1.read_text(encoding="utf-8") == f2.read_text(encoding="utf-8")
+
+
 class TestMergeViaCli:
     def test_overlapping_targets_produce_single_root(self, tmp_path: Path):
         (tmp_path / "foo" / "sub").mkdir(parents=True)

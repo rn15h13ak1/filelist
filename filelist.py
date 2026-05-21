@@ -107,15 +107,17 @@ def main() -> int:
     consolidate_common_roots(items)
 
     generated_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    output_path = args.output or config.output_path
+    # CLI -o は config の出力先一覧を上書き (単一出力に絞る)
+    output_paths = [args.output] if args.output else list(config.output_paths)
 
     if not args.quiet:
         sys.stderr.write(
             f"Items: {len(items)}, Errors: {len(errors)}, "
             f"Merged (skipped): {total_skipped}\n"
         )
-        sys.stderr.write(f"Writing {output_path} ...\n")
-    write_html(items, errors, config.targets, output_path, generated_at,
+        for op in output_paths:
+            sys.stderr.write(f"Writing {op} ...\n")
+    write_html(items, errors, config.targets, output_paths, generated_at,
                dedup_skipped=total_skipped, title=config.title)
     if not args.quiet:
         sys.stderr.write("Done.\n")

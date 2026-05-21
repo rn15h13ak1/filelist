@@ -89,6 +89,12 @@ output:
   # 既定は出力専用ディレクトリ ./reports/ 配下（.gitignore 対象、無ければ自動作成）
   # {datetime} は YYYYMMDD-HHMMSS に置換
   path: "./reports/filelist.html"
+
+  # 複数出力 (リストで同じ内容を全パスへ書く。"最新版" + "履歴" を同時に残す等)
+  # path:
+  #   - "./reports/filelist.html"                # 上書き = 常に最新
+  #   - "./reports/filelist_{datetime}.html"     # 履歴
+
   # HTML の <title> と H1 に表示。複数の出力を区別したい場合に便利。
   title: "拠点A 月次レポート"
 ```

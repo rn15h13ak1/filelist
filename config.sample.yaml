@@ -69,6 +69,13 @@ exclude:
 #   "./reports/filelist.html"             既定（同名で上書き）
 #   "./reports/filelist_{datetime}.html"  実行ごとに別ファイルとして残す
 output:
+  # 単一指定
   path: "./reports/filelist.html"
+
+  # 複数指定 (同じ内容を複数パスへ書く。例: latest + 履歴)
+  # path:
+  #   - "./reports/filelist.html"                  # 上書き = 常に最新
+  #   - "./reports/filelist_{datetime}.html"       # 履歴
+
   # HTML の <title> と H1 に表示。複数の出力を区別したい場合に便利。
   # title: "拠点A 月次レポート"

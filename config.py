@@ -52,9 +52,14 @@ class Target:
 class Config:
     targets: List[Target]
     exclude_patterns: List[str] = field(default_factory=list)
-    output_path: str = "./reports/filelist.html"
+    output_paths: List[str] = field(default_factory=lambda: ["./reports/filelist.html"])
     title: str = "filelist"
     config_path: Optional[Path] = None
+
+    @property
+    def output_path(self) -> str:
+        """旧 API 互換: 主出力パス (= output_paths の先頭)。"""
+        return self.output_paths[0] if self.output_paths else ""
 
 
 def _is_absolute_path_string(path_str: str) -> bool:
@@ -406,20 +411,38 @@ def load_config(config_arg: Optional[str], default_search_dir: Path) -> Config:
     _validate_overlap_copy_as(targets)
 
     output_cfg = raw.get("output") or {}
-    # 既定では出力専用ディレクトリ `reports/` 配下に置く (.gitignore 対象)。
-    output_path = str(output_cfg.get("path") or "./reports/filelist.html")
     title = str(output_cfg.get("title") or "filelist")
 
-    ts = datetime.datetime.now()
-    output_path = output_path.replace("{datetime}", ts.strftime("%Y%m%d-%H%M%S"))
+    # output.path は文字列 or 文字列リストを受け取る。
+    # 例 1 (単一): path: "./reports/filelist.html"
+    # 例 2 (複数): path: ["./reports/filelist.html", "./reports/filelist_{datetime}.html"]
+    raw_paths = output_cfg.get("path")
+    if raw_paths is None:
+        output_paths = ["./reports/filelist.html"]
+    elif isinstance(raw_paths, str):
+        output_paths = [raw_paths]
+    elif isinstance(raw_paths, list):
+        if not raw_paths:
+            raise ConfigError("output.path がリストの場合は 1 件以上指定してください")
+        for i, p in enumerate(raw_paths):
+            if not isinstance(p, str):
+                raise ConfigError(f"output.path[{i}] は文字列で指定してください: {p!r}")
+        output_paths = list(raw_paths)
+    else:
+        raise ConfigError(f"output.path は文字列またはリストで指定してください: {raw_paths!r}")
 
-    if not os.path.isabs(output_path):
-        output_path = str(config_dir / output_path)
+    ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    resolved_paths: List[str] = []
+    for p in output_paths:
+        p = p.replace("{datetime}", ts)
+        if not os.path.isabs(p):
+            p = str(config_dir / p)
+        resolved_paths.append(p)
 
     return Config(
         targets=targets,
         exclude_patterns=exclude_patterns,
-        output_path=output_path,
+        output_paths=resolved_paths,
         title=title,
         config_path=config_path,
     )
