@@ -51,6 +51,8 @@ def _compact_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "sl": 1 if it.get("is_symlink") else 0,
             "slt": it.get("symlink_target") or "",
             "tr": 1 if it.get("truncated") else 0,
+            "ex": 1 if it.get("excluded") else 0,
+            "exp": it.get("excluded_pattern") or "",
         })
     return out
 

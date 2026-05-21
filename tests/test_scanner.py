@@ -139,9 +139,13 @@ class TestScanTarget:
             errors,
         )
         names = [it["name"] for it in items]
-        assert ".git" not in names
+        # ファイル (*.tmp) は完全に除去
         assert "notes.tmp" not in names
-        # .git の子ファイル (HEAD) も含まれない
+        # フォルダ (.git) は excluded=True フラグ付きで残る (UI で透明性のため)
+        git = next((it for it in items if it["name"] == ".git"), None)
+        assert git is not None
+        assert git["excluded"] is True
+        # ただし配下 (HEAD) は走査されない
         assert "HEAD" not in names
 
     def test_max_depth_zero_lists_only_root(self, sample_tree: Path):
@@ -341,6 +345,76 @@ class TestTruncatedFlag:
         scan_target(make_target(str(sample_tree)), 0, [], items, errors)
         # max_depth=None なら truncated=True は出ない
         assert all(not it["truncated"] for it in items)
+
+
+class TestExcludedFolders:
+    def test_excluded_folder_added_as_item_with_flag(self, tmp_path: Path):
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "HEAD").write_text("ref", encoding="utf-8")
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "main.py").write_text("x", encoding="utf-8")
+        items, errors = [], []
+        scan_target(make_target(str(tmp_path)), 0, [".git"], items, errors)
+        # .git は item に残るが excluded=True
+        git_item = next((it for it in items if it["name"] == ".git"), None)
+        assert git_item is not None
+        assert git_item["excluded"] is True
+        assert git_item["excluded_pattern"] == ".git"
+        assert git_item["type"] == "folder"
+        # 配下 (HEAD) は items に含まれない
+        assert not any(it["name"] == "HEAD" for it in items)
+        # 通常フォルダは普通に展開される
+        assert any(it["name"] == "main.py" for it in items)
+
+    def test_excluded_file_completely_hidden(self, tmp_path: Path):
+        (tmp_path / "Thumbs.db").write_text("x", encoding="utf-8")
+        (tmp_path / "keep.txt").write_text("x", encoding="utf-8")
+        items, errors = [], []
+        scan_target(make_target(str(tmp_path)), 0, ["Thumbs.db"], items, errors)
+        # ファイルの除外は完全に削除 (excluded フラグも付かない)
+        assert not any(it["name"] == "Thumbs.db" for it in items)
+        assert any(it["name"] == "keep.txt" for it in items)
+
+    def test_multiple_exclude_patterns_for_folders(self, tmp_path: Path):
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "node_modules").mkdir()
+        (tmp_path / "src").mkdir()
+        items, errors = [], []
+        scan_target(make_target(str(tmp_path)), 0, [".git", "node_modules"], items, errors)
+        git = next(it for it in items if it["name"] == ".git")
+        nm = next(it for it in items if it["name"] == "node_modules")
+        assert git["excluded"] is True
+        assert git["excluded_pattern"] == ".git"
+        assert nm["excluded"] is True
+        assert nm["excluded_pattern"] == "node_modules"
+
+    def test_glob_pattern_matches_folder(self, tmp_path: Path):
+        (tmp_path / "build_2026").mkdir()
+        (tmp_path / "build_2027").mkdir()
+        (tmp_path / "src").mkdir()
+        items, errors = [], []
+        scan_target(make_target(str(tmp_path)), 0, ["build_*"], items, errors)
+        b26 = next(it for it in items if it["name"] == "build_2026")
+        b27 = next(it for it in items if it["name"] == "build_2027")
+        assert b26["excluded"] is True
+        assert b26["excluded_pattern"] == "build_*"
+        assert b27["excluded"] is True
+
+    def test_explicit_target_overrides_exclusion(self, tmp_path: Path):
+        """親が除外したフォルダを子ターゲットで明示指定したら excluded フラグが解除される。"""
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "HEAD").write_text("ref", encoding="utf-8")
+        items, errors = [], []
+        seen: dict = {}
+        # A: 親を除外指定でスキャン
+        scan_target(make_target(str(tmp_path)), 0, [".git"], items, errors, seen_paths=seen)
+        git = next(it for it in items if it["name"] == ".git")
+        assert git["excluded"] is True
+        # B: .git を明示的にスキャン (exclude_patterns 同じだが root には適用されない)
+        scan_target(make_target(str(tmp_path / ".git")), 1, [".git"], items, errors, seen_paths=seen)
+        git = next(it for it in items if it["name"] == ".git" or it["name"] == str(tmp_path / ".git"))
+        # B のスキャンで HEAD が追加され、excluded が解除される
+        assert any(it["name"] == "HEAD" for it in items)
 
 
 class TestConsolidateCommonRoots:

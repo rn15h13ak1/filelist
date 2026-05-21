@@ -38,6 +38,7 @@
 
   // ===== 共通ヘルパ: アイテム種別ラベル =====
   function getTypeLabel(it, longSymlink) {
+    if (it.ex) return '除外';
     if (it.sl) return longSymlink ? 'シンボリックリンク' : 'リンク';
     return it.t === 0 ? 'フォルダ' : 'ファイル';
   }
@@ -210,6 +211,12 @@
       trBlock.textContent = 'max_depth に達したため配下のフォルダ・ファイルは走査されていません';
       addRow('走査状態', trBlock);
     }
+    if (item.ex) {
+      var exBlock = document.createElement('div');
+      exBlock.className = 'excluded-note';
+      exBlock.textContent = '除外パターン "' + (item.exp || '') + '" により配下のフォルダ・ファイルは走査されていません';
+      addRow('走査状態', exBlock);
+    }
 
     if (typeof modalEl.showModal === 'function') {
       if (!modalEl.open) modalEl.showModal();
@@ -324,6 +331,10 @@
       warn.title = 'アクセスエラー: ' + it.err;
       itemEl.appendChild(warn);
     }
+    if (it.ex) {
+      li.classList.add('li-excluded');
+      name.title = it.n + '\n除外パターン "' + it.exp + '" により配下は走査されません';
+    }
 
     var info = document.createElement('span');
     info.className = 'info';
@@ -341,6 +352,13 @@
       note.textContent = ' · 未走査';
       note.title = 'max_depth により配下は走査されていません';
       info.appendChild(note);
+    }
+    if (it.ex) {
+      var exNote = document.createElement('span');
+      exNote.className = 'truncated-note';
+      exNote.textContent = ' · 除外: ' + it.exp;
+      exNote.title = '除外パターン "' + it.exp + '" により配下は走査されません';
+      info.appendChild(exNote);
     }
     itemEl.appendChild(info);
 
@@ -420,6 +438,10 @@
       warn.textContent = ' ⚠';
       warn.title = 'アクセスエラー: ' + it.err;
       tdName.appendChild(warn);
+    }
+    if (it.ex) {
+      tr.classList.add('row-excluded');
+      tdName.title = it.n + '\n除外パターン "' + it.exp + '" により配下は走査されません';
     }
     tr.appendChild(tdName);
 
@@ -728,14 +750,22 @@
     document.getElementById(id).addEventListener('input', scheduleFilter);
   });
 
-  // 「不可も表示」は body の class を toggle するだけ (CSS で表示制御)。
+  // 「不可も表示」「除外も表示」は body の class を toggle するだけ (CSS で表示制御)。
   // JS の反復処理が無いため、何万件あっても瞬時。
   function applyHideErroredClass() {
     var hide = !document.getElementById('showErrored').checked;
     document.body.classList.toggle('hide-errored', hide);
   }
+  function applyHideExcludedClass() {
+    var hide = !document.getElementById('showExcluded').checked;
+    document.body.classList.toggle('hide-excluded', hide);
+  }
   document.getElementById('showErrored').addEventListener('change', function() {
     applyHideErroredClass();
+    syncHash();
+  });
+  document.getElementById('showExcluded').addEventListener('change', function() {
+    applyHideExcludedClass();
     syncHash();
   });
 
@@ -851,6 +881,7 @@
     if (s.ext !== undefined) document.getElementById('extFilter').value = s.ext;
     if (s.type !== undefined) document.getElementById('typeFilter').value = s.type;
     if (s.errors === '1') document.getElementById('showErrored').checked = true;
+    if (s.excluded === '1') document.getElementById('showExcluded').checked = true;
     if (s.view === 'table' || s.view === 'tree') {
       var btn = document.querySelector('.view-toggle button[data-view="' + s.view + '"]');
       if (btn) btn.click();   // table の場合は内部で ensureTableBuilt() が呼ばれる
@@ -865,8 +896,9 @@
       applyColumnState();
     }
     syncing = false;
-    // hideErrored は body の class なので checkbox の状態を CSS に反映
+    // hideErrored / hideExcluded は body の class なので checkbox の状態を CSS に反映
     applyHideErroredClass();
+    applyHideExcludedClass();
     // 検索 / 拡張子 / 種別フィルタが含まれていれば applyFilter (重い処理)
     if (s.search || s.ext || s.type) applyFilter();
   }
@@ -878,11 +910,13 @@
     var e = document.getElementById('extFilter').value;
     var t = document.getElementById('typeFilter').value;
     var showErr = document.getElementById('showErrored').checked;
+    var showEx = document.getElementById('showExcluded').checked;
     var v = document.querySelector('.view-toggle button.active');
     if (s) parts.push('search=' + encodeURIComponent(s));
     if (e) parts.push('ext=' + encodeURIComponent(e));
     if (t) parts.push('type=' + encodeURIComponent(t));
     if (showErr) parts.push('errors=1');
+    if (showEx) parts.push('excluded=1');
     if (v && v.dataset.view !== 'tree') parts.push('view=' + v.dataset.view);
     var hiddenCols = COL_KEYS.filter(function(c) {
       var cb = getColCheckbox(c);
@@ -900,8 +934,9 @@
   });
   window.addEventListener('hashchange', applyHashState);
 
-  // 初期表示: アクセス不可フォルダは body.hide-errored の CSS 一発で隠す
+  // 初期表示: アクセス不可・除外フォルダは body の class でまとめて隠す (CSS 一発)
   applyHideErroredClass();
+  applyHideExcludedClass();
 
   // URL ハッシュがあれば状態復元 (filter / view / cols 等)
   if (location.hash) applyHashState();

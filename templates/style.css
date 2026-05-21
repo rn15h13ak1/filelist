@@ -139,6 +139,14 @@ tr.row-error td.name::after, tr.row-error td.name { color: var(--err); }
 body.hide-errored .tree li.li-error,
 body.hide-errored tbody tr.row-error { display: none; }
 
+/* 除外パターンに一致したフォルダは muted で表示、既定では body.hide-excluded で非表示 */
+.tree li.li-excluded > .item .name { color: var(--muted); font-style: italic; }
+.tree li.li-excluded > .item .icon { opacity: 0.6; }
+tbody tr.row-excluded td.name { color: var(--muted); font-style: italic; }
+body.hide-excluded .tree li.li-excluded,
+body.hide-excluded tbody tr.row-excluded { display: none; }
+dialog#modal .excluded-note { background: rgba(107, 114, 128, 0.1); border: 1px solid var(--border); color: var(--muted); padding: 8px 10px; border-radius: 4px; font-size: 12px; word-break: break-all; }
+
 dialog#modal { padding: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--fg); max-width: 760px; width: calc(100% - 48px); max-height: 86vh; box-shadow: 0 16px 48px rgba(0,0,0,0.35); overflow: hidden; }
 dialog#modal::backdrop { background: rgba(0,0,0,0.55); }
 dialog#modal .modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 24px 12px; border-bottom: 1px solid var(--border); gap: 12px; }

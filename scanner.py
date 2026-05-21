@@ -210,6 +210,8 @@ def consolidate_common_roots(items: List[Dict[str, Any]]) -> None:
         "symlink_target": "",
         "error": "",
         "truncated": False,
+        "excluded": False,
+        "excluded_pattern": "",
     })
 
     # 既存ルートを合成ルートの子に書き換え。表示名は copy_path から共通プレフィックスを
@@ -306,6 +308,10 @@ def scan_target(
         existing_id = seen_paths[root_canonical]
         if items[existing_id].get("truncated"):
             items[existing_id]["truncated"] = False
+        # 後続ターゲットが明示的にこのパスを指す場合、除外フラグも解除する
+        if items[existing_id].get("excluded"):
+            items[existing_id]["excluded"] = False
+            items[existing_id]["excluded_pattern"] = ""
         skipped += 1
         # 再開地点の copy_path は既存 item のものを使用
         stack: List = [(scan_path, existing_id, items[existing_id]["copy_path"], 1)]
@@ -328,6 +334,8 @@ def scan_target(
             "symlink_target": "",
             "error": "",
             "truncated": False,
+            "excluded": False,
+            "excluded_pattern": "",
         })
         seen_paths[root_canonical] = root_id
         added += 1
@@ -351,20 +359,30 @@ def scan_target(
             items[parent_id]["count"] = None
             continue
 
-        # 除外フィルタ → メタ情報を一度だけ収集（is_dir / is_symlink / stat の重複呼び出し回避）
-        filtered = [e for e in entries if not is_excluded(e.name, exclude_patterns)]
-        items[parent_id]["count"] = len(filtered)
-
+        # 除外パターン判定: ファイル/symlink は完全に弾く、ディレクトリは items に
+        # 「除外」フラグ付きで残し、配下は走査しない (透明性のため visible オプションあり)。
+        excluded_info = {}  # entry.path → 一致した pattern (除外ディレクトリのみ)
         annotated = []
-        for entry in filtered:
+        for entry in entries:
+            matched_pattern = next(
+                (p for p in exclude_patterns if fnmatch.fnmatch(entry.name, p)), None
+            )
             try:
                 st = entry.stat(follow_symlinks=False)
             except OSError as e:
-                errors.append({"path": entry.path, "error": str(e)})
+                if not matched_pattern:
+                    errors.append({"path": entry.path, "error": str(e)})
                 continue
             is_link = safe_is_symlink(entry)
             is_dir = safe_is_dir(entry)
+            if matched_pattern:
+                # ファイル / symlink で除外 → 完全に弾く (旧来動作)
+                if not is_dir or is_link:
+                    continue
+                excluded_info[entry.path] = matched_pattern
             annotated.append((entry, st, is_dir, is_link))
+
+        items[parent_id]["count"] = len(annotated)
 
         # フォルダ先頭、名前順
         annotated.sort(key=lambda x: (0 if x[2] else 1, x[0].name.lower()))
@@ -376,14 +394,21 @@ def scan_target(
             full_path = make_path(dir_path, entry.name, scan_sep)
             canonical = fast_canonical(full_path)
 
+            excluded_pattern = excluded_info.get(entry.path)
+            is_excluded_dir = bool(excluded_pattern)
+
             # 既出パスは追加せず、フォルダなら既存 id 経由でさらに深く走査
             if canonical in seen_paths:
                 existing_id = seen_paths[canonical]
                 if items[existing_id].get("truncated"):
                     items[existing_id]["truncated"] = False
                 skipped += 1
-                if is_dir and not is_link:
+                if is_dir and not is_link and not is_excluded_dir:
                     if max_depth is None or (depth + 1) <= max_depth:
+                        # 後続ターゲットが descend する → 既存 item の excluded も解除
+                        if items[existing_id].get("excluded"):
+                            items[existing_id]["excluded"] = False
+                            items[existing_id]["excluded_pattern"] = ""
                         children_to_descend.append(
                             (full_path, existing_id, items[existing_id]["copy_path"], depth + 1)
                         )
@@ -402,7 +427,7 @@ def scan_target(
 
             # max_depth で配下を走査しないフォルダには truncated=True を立てる
             is_truncated = False
-            if is_dir and not is_link:
+            if is_dir and not is_link and not is_excluded_dir:
                 if max_depth is not None and (depth + 1) > max_depth:
                     is_truncated = True
 
@@ -426,14 +451,16 @@ def scan_target(
                 "symlink_target": sym_target,
                 "error": "",
                 "truncated": is_truncated,
+                "excluded": is_excluded_dir,
+                "excluded_pattern": excluded_pattern or "",
             })
             seen_paths[canonical] = item_id
             added += 1
             if progress_callback:
                 progress_callback(len(items))
 
-            # symlink は辿らない、max_depth で打ち切りなら descend しない
-            if is_dir and not is_link and not is_truncated:
+            # symlink・excluded・truncated は配下を走査しない
+            if is_dir and not is_link and not is_truncated and not is_excluded_dir:
                 children_to_descend.append((full_path, item_id, copy_path, depth + 1))
 
         # 元の DFS 順序を保つため逆順で push
