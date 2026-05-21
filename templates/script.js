@@ -92,9 +92,12 @@
     }, 1200);
   }
   function quoteForCopy(text) {
-    // パスをダブルクォートで包む。シェル / アドレスバー貼付時にスペース・特殊文字が安全になる。
-    // 内側の " は \" でエスケープ (POSIX シェルの "..."` 内表現と互換)。
-    return '"' + String(text).replace(/"/g, '\\"') + '"';
+    // 半角スペースを含むパスのみダブルクォートで包む（シェル・アドレスバー貼付の安全策）。
+    // スペース無しのパスは bare のままにして、Excel/Word への貼付で余計な " が出ないようにする。
+    // 内側の " は \" でエスケープ。
+    var s = String(text);
+    if (s.indexOf(' ') === -1) return s;
+    return '"' + s.replace(/"/g, '\\"') + '"';
   }
   function copyText(text, btn) {
     var quoted = quoteForCopy(text);
