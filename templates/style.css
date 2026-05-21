@@ -37,6 +37,8 @@ header h1 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
 .view-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
 .view-toggle button { padding: 6px 12px; border: 0; border-radius: 0; background: var(--bg); color: var(--fg); cursor: pointer; }
 .view-toggle button.active { background: var(--accent); color: #fff; }
+.show-errored-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; padding: 0 4px; }
+.show-errored-toggle input { margin: 0; cursor: pointer; }
 
 #perfWarn { display: none; padding: 8px 16px; background: rgba(245, 158, 11, 0.15); border-bottom: 1px solid rgba(245, 158, 11, 0.4); font-size: 12px; color: var(--fg); }
 

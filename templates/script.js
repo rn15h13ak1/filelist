@@ -474,7 +474,10 @@
     var q = document.getElementById('search').value.trim().toLowerCase();
     var ext = document.getElementById('extFilter').value;
     var type = document.getElementById('typeFilter').value;
-    var active = !!(q || ext || type);
+    var showErrored = document.getElementById('showErrored').checked;
+    // 「不可も表示」が外れていればアクセス不可フォルダを非表示扱いにする
+    var hideErrored = !showErrored;
+    var active = !!(q || ext || type || hideErrored);
 
     syncHash();
 
@@ -485,6 +488,7 @@
     for (var i = 0; i < N; i++) {
       var it = items[i];
       var m = 1;
+      if (m && hideErrored && it.err) m = 0;
       if (q && it.n.toLowerCase().indexOf(q) === -1 && it.cp.toLowerCase().indexOf(q) === -1) m = 0;
       if (m && ext && it.e !== ext) m = 0;
       if (m && type) {
@@ -659,6 +663,7 @@
   ['search', 'extFilter', 'typeFilter'].forEach(function(id) {
     document.getElementById(id).addEventListener('input', scheduleFilter);
   });
+  document.getElementById('showErrored').addEventListener('change', scheduleFilter);
 
   document.getElementById('tableBody').addEventListener('click', function(e) {
     if (e.target.closest('button')) return;
@@ -766,6 +771,7 @@
     if (s.search !== undefined) document.getElementById('search').value = s.search;
     if (s.ext !== undefined) document.getElementById('extFilter').value = s.ext;
     if (s.type !== undefined) document.getElementById('typeFilter').value = s.type;
+    if (s.errors === '1') document.getElementById('showErrored').checked = true;
     if (s.view === 'table' || s.view === 'tree') {
       var btn = document.querySelector('.view-toggle button[data-view="' + s.view + '"]');
       if (btn) btn.click();
@@ -780,7 +786,7 @@
       applyColumnState();
     }
     syncing = false;
-    if (s.search || s.ext || s.type) applyFilter();
+    applyFilter();
   }
 
   function syncHash() {
@@ -789,10 +795,12 @@
     var s = document.getElementById('search').value;
     var e = document.getElementById('extFilter').value;
     var t = document.getElementById('typeFilter').value;
+    var showErr = document.getElementById('showErrored').checked;
     var v = document.querySelector('.view-toggle button.active');
     if (s) parts.push('search=' + encodeURIComponent(s));
     if (e) parts.push('ext=' + encodeURIComponent(e));
     if (t) parts.push('type=' + encodeURIComponent(t));
+    if (showErr) parts.push('errors=1');
     if (v && v.dataset.view !== 'tree') parts.push('view=' + v.dataset.view);
     var hiddenCols = COL_KEYS.filter(function(c) {
       var cb = getColCheckbox(c);
@@ -810,6 +818,7 @@
   });
   window.addEventListener('hashchange', applyHashState);
 
-  // 初期読込時の hash 反映
+  // 初期読込時の hash 反映 (なければ既定フィルタ＝アクセス不可フォルダ非表示 を適用)
   if (location.hash) applyHashState();
+  else applyFilter();
 })();
