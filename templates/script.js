@@ -430,6 +430,7 @@
       warn.title = 'アクセスエラー: ' + it.err;
       itemEl.appendChild(warn);
     }
+    if (it.kv) li.classList.add('li-keep-visible');
     if (it.ex) {
       li.classList.add('li-excluded');
       name.title = it.n + '\n除外パターン "' + it.exp + '" により配下は走査されません';
@@ -538,6 +539,7 @@
       warn.title = 'アクセスエラー: ' + it.err;
       tdName.appendChild(warn);
     }
+    if (it.kv) tr.classList.add('row-keep-visible');
     if (it.ex) {
       tr.classList.add('row-excluded');
       tdName.title = it.n + '\n除外パターン "' + it.exp + '" により配下は走査されません';

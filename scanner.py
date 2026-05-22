@@ -136,30 +136,85 @@ def _get(target, key: str):
 
 
 def consolidate_common_roots(items: List[Dict[str, Any]]) -> None:
-    """複数のターゲットルートが共通祖先パスを持つ場合、合成ルートで束ねる。
+    """複数のターゲットルートを束ねる。 2 段階で処理する。
 
-    例: ``Z:/100`` と ``Z:/200`` → 仮想ルート ``Z:`` を作り、両者をその子に。
-        ``//server/share/foo`` と ``//server/share/bar`` → ``\\\\server\\share`` で束ねる。
+    **Phase 1: 祖先/子孫マージ**
+      一方のルートが他方の祖先パスである場合、子孫を祖先の子として attach する。
+      例: ``//server/aaa/bbb`` (アクセスエラー) と ``//server/aaa/bbb/ccc/ddd/eee``
+          → ``bbb`` の下に ``ccc/ddd/eee`` がぶら下がる。
+      祖先がアクセスエラーでも明示的な子孫を持つ場合は、UI で「不可も表示」が OFF
+      でも非表示にしないよう ``keep_visible`` フラグを立てる。
 
-    items リストを in-place で書き換える:
-      - 合成ルートを末尾に追加 (id = 元 len(items))
-      - 既存ルートの ``parent`` を合成ルート id に更新、``is_root`` を False に
-      - 既存ルートの ``name`` を共通プレフィックス除去後の相対表現に更新
-        (copy_path はそのまま絶対パスを保持)
+    **Phase 2: 共通プレフィックスマージ (既存挙動)**
+      Phase 1 で残ったルート群が共通祖先パスを持つ場合、合成ルートで束ねる。
+      例: ``Z:/100`` と ``Z:/200`` → 仮想ルート ``Z:`` を作り、両者をその子に。
+          ``//server/share/foo`` と ``//server/share/bar`` → ``\\\\server\\share``。
 
-    マージしないケース:
+    マージしないケース (共通):
       - ルートが 1 つ以下
       - セパレータが揃わない (Windows と POSIX が混在)
-      - 共通プレフィックスが意味を持たない (全要素が空など)
-      - 共通プレフィックスがいずれかのルートと一致 (既にそれが親)
+      - Phase 2 で共通プレフィックスが意味を持たない (全要素が空など)
     """
+    root_indices = [i for i, it in enumerate(items) if it.get("is_root")]
+    if len(root_indices) < 2:
+        return
+
+    # ====== Phase 1: 祖先/子孫マージ ======
+    # 各ルートについて「自分以外の全 folder アイテムの中で最長の祖先パス」を見つけて
+    # attach する。祖先は別ルートとは限らない: 例えば aaa → bbb (アクセスエラー) と
+    # eee (= //aaa/bbb/ccc/ddd/eee 独立ターゲット) では、bbb が非ルートの folder
+    # アイテムだが eee の最長祖先になるため、bbb の下に eee がぶら下がる。
+    # 元の集合に基づいてペアを抽出してから一括適用するため、チェーンでも整合する。
+    attachments: List[tuple] = []  # (desc_id, ancestor_id)
+    for desc_id in root_indices:
+        desc_cp = items[desc_id]["copy_path"]
+        if "\\" in desc_cp:
+            desc_sep = "\\"
+        elif "/" in desc_cp:
+            desc_sep = "/"
+        else:
+            continue
+        nearest_anc_id: Optional[int] = None
+        nearest_anc_len = -1
+        for anc_id, anc in enumerate(items):
+            if anc_id == desc_id:
+                continue
+            if anc.get("type") != "folder":
+                continue
+            anc_cp = anc["copy_path"]
+            prefix = anc_cp + desc_sep
+            if desc_cp.startswith(prefix) and len(anc_cp) > nearest_anc_len:
+                nearest_anc_id = anc_id
+                nearest_anc_len = len(anc_cp)
+        if nearest_anc_id is not None:
+            attachments.append((desc_id, nearest_anc_id))
+
+    for desc_id, anc_id in attachments:
+        desc = items[desc_id]
+        anc = items[anc_id]
+        desc["parent"] = anc_id
+        desc["is_root"] = False
+        anc_cp = anc["copy_path"]
+        desc_cp = desc["copy_path"]
+        desc_sep = "\\" if "\\" in desc_cp else "/"
+        # 相対パスで再命名 (例: //server/aaa/bbb/ccc/ddd/eee → ccc/ddd/eee)
+        desc["name"] = desc_cp[len(anc_cp) + len(desc_sep):]
+        desc["parent_copy_path"] = anc_cp
+        # 祖先がアクセスエラーで非表示候補でも、明示的な子孫があるなら可視に保つ
+        if anc.get("error"):
+            anc["keep_visible"] = True
+        # max_depth 由来の truncated は、明示的な子孫を得たので解除
+        if anc.get("truncated"):
+            anc["truncated"] = False
+
+    # ====== Phase 2: 共通プレフィックスマージ ======
     root_indices = [i for i, it in enumerate(items) if it.get("is_root")]
     if len(root_indices) < 2:
         return
 
     paths = [items[i]["copy_path"] for i in root_indices]
 
-    # セパレータが揃わない場合はマージしない
+    # セパレータが揃わない場合は Phase 2 をスキップ (Phase 1 の結果は保持)
     detected = set()
     for p in paths:
         if "\\" in p:
@@ -187,7 +242,7 @@ def consolidate_common_roots(items: List[Dict[str, Any]]) -> None:
 
     common_path = sep.join(common_parts)
 
-    # 共通プレフィックスがいずれかのルートと完全一致 → そのルートが既に親
+    # Phase 1 で祖先/子孫関係は解消済み。念のため防御的チェック。
     if common_path in paths:
         return
 

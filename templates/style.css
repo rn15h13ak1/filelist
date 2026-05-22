@@ -142,9 +142,10 @@ dialog#modal .truncated-note { background: rgba(245, 158, 11, 0.12); border: 1px
 tr.row-error td.name::after, tr.row-error td.name { color: var(--err); }
 .tree li.li-error > .item .name { color: var(--err); }
 
-/* アクセスエラーがあったフォルダは body.hide-errored で一括非表示 (CSS のみ、JS 反復不要) */
-body.hide-errored .tree li.li-error,
-body.hide-errored tbody tr.row-error { display: none; }
+/* アクセスエラーがあったフォルダは body.hide-errored で一括非表示 (CSS のみ、JS 反復不要)。
+   ただし keep_visible (= 明示的な子孫を持つ祖先) は除外して常に可視に保つ。 */
+body.hide-errored .tree li.li-error:not(.li-keep-visible),
+body.hide-errored tbody tr.row-error:not(.row-keep-visible) { display: none; }
 
 /* 除外パターンに一致したフォルダは muted で表示、既定では body.hide-excluded で非表示 */
 .tree li.li-excluded > .item .name { color: var(--muted); font-style: italic; }

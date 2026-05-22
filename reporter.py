@@ -53,6 +53,7 @@ def _compact_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "tr": 1 if it.get("truncated") else 0,
             "ex": 1 if it.get("excluded") else 0,
             "exp": it.get("excluded_pattern") or "",
+            "kv": 1 if it.get("keep_visible") else 0,
         })
     return out
 
