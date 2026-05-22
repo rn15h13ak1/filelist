@@ -585,9 +585,21 @@
 
     var tdActions = document.createElement('td');
     tdActions.className = 'actions';
-    appendActionsTo(tdActions, it);
+    // 操作ボタンは hover で遅延生成 (80k 行 × 3 ボタンの初期生成コストを回避)。
+    // ensureRowActions() で実体化する。
     tr.appendChild(tdActions);
     return tr;
+  }
+
+  // 行ホバー時に操作ボタン群を実体化する (初回のみ、以降は no-op)
+  function ensureRowActions(tr) {
+    if (!tr || tr.dataset.actionsBuilt === '1') return;
+    var it = items[+tr.dataset.id];
+    if (!it) return;
+    var tdActions = tr.lastElementChild;
+    if (!tdActions) return;
+    appendActionsTo(tdActions, it);
+    tr.dataset.actionsBuilt = '1';
   }
 
   var tableBuilt = false;
@@ -702,6 +714,8 @@
     }
 
     var visible = 0;
+    var visibleFolders = 0;
+    var visibleFiles = 0;
     for (var k2 = 0; k2 < N; k2++) {
       var it2 = items[k2];
       var visTree = !active || matches[k2] || hasMD[k2];
@@ -713,11 +727,45 @@
       }
       var tr2 = tableRows[k2];
       if (tr2) tr2.classList.toggle('hidden', !visTable);
-      if (matches[k2]) visible++;
+      if (matches[k2]) {
+        visible++;
+        if (it2.t === 0) visibleFolders++;
+        else visibleFiles++;
+      }
     }
 
-    var status = document.getElementById('visibleStatus');
-    status.textContent = active ? ' · フィルタ結果: ' + visible + ' 件' : '';
+    renderFilterCount(active, visible, visibleFolders, visibleFiles);
+  }
+
+  // フィルタ件数を表示。未適用時は全件の内訳、適用時はマッチ件数を強調表示する。
+  function renderFilterCount(active, visible, visibleFolders, visibleFiles) {
+    var box = document.getElementById('filterCount');
+    if (!box) return;
+    var total = items.length;
+    var totalFolders = 0, totalFiles = 0;
+    if (!renderFilterCount._totalsCached) {
+      for (var i = 0; i < total; i++) {
+        if (items[i].t === 0) totalFolders++;
+        else totalFiles++;
+      }
+      renderFilterCount._totalFolders = totalFolders;
+      renderFilterCount._totalFiles = totalFiles;
+      renderFilterCount._totalsCached = true;
+    } else {
+      totalFolders = renderFilterCount._totalFolders;
+      totalFiles = renderFilterCount._totalFiles;
+    }
+    if (active) {
+      box.classList.add('active');
+      box.innerHTML = '一致 ' + visible + ' / ' + total + ' 件' +
+        '<span class="fc-breakdown">フォルダ ' + visibleFolders +
+        ' / ファイル ' + visibleFiles + '</span>';
+    } else {
+      box.classList.remove('active');
+      box.innerHTML = '全 ' + total + ' 件' +
+        '<span class="fc-breakdown">フォルダ ' + totalFolders +
+        ' / ファイル ' + totalFiles + '</span>';
+    }
   }
 
   document.querySelectorAll('.view-toggle button').forEach(function(btn) {
@@ -833,6 +881,8 @@
   }
 
   buildTree();
+  // 初期表示: フィルタ未適用状態で「全 N 件 / フォルダ X / ファイル Y」を出す
+  renderFilterCount(false, 0, 0, 0);
   // テーブルは初期表示時に構築せず、初めてテーブルビューに切り替えたとき、
   // または CSV エクスポート時にチャンク描画で実体化する。
   // 22万件規模でも初期描画でブラウザがブロックしない設計。
@@ -882,6 +932,13 @@
     if (!tr || !tr.dataset.id) return;
     var it = items[+tr.dataset.id];
     if (it) showDetail(it);
+  });
+
+  // 行ホバー時に操作ボタン群を遅延生成。pointerover は delegate しやすく、
+  // 80k 行 × 3 ボタンを初期に作らずに済む (実際に hover した行だけ生成)。
+  document.getElementById('tableBody').addEventListener('pointerover', function(e) {
+    var tr = e.target.closest('tr');
+    if (tr && tr.dataset.id) ensureRowActions(tr);
   });
 
   // ===== 表示列のトグル (N6 / N15) =====

@@ -12,7 +12,7 @@
 <header>
   <h1>{{TITLE}}</h1>
   <div class="meta">
-    生成日時: {{GENERATED_AT}} ・ 全件: <span id="totalCount">{{TOTAL}}</span><span class="status" id="visibleStatus"></span>
+    生成日時: {{GENERATED_AT}} ・ 全件: <span id="totalCount">{{TOTAL}}</span>
     <span class="error-banner" id="errorBanner">⚠ <span id="errorBannerCount"></span> 件のアクセスエラー <a id="errorBannerLink">詳細を見る</a></span>
     <div class="meta-info" id="metaInfo"></div>
   </div>
@@ -47,6 +47,7 @@
     <button id="collapseAll" type="button">全折りたたみ</button>
     <button id="columnSettings" type="button" title="表示列の切替">表示列</button>
     <button id="csvExport" type="button" title="現在のフィルタ結果を CSV としてダウンロード">CSV</button>
+    <span class="filter-count" id="filterCount" title="現在の表示件数 (フォルダ/ファイル)"></span>
   </div>
   <div id="columnPanel" class="column-panel" hidden>
     <strong>表示列</strong>
@@ -65,6 +66,16 @@
     <div id="tableBuildProgress" class="table-build-progress" style="display:none">テーブル準備中...</div>
     <div class="table-wrap">
       <table>
+        <colgroup>
+          <col class="col-name">
+          <col class="col-type">
+          <col class="col-ext">
+          <col class="col-size">
+          <col class="col-count">
+          <col class="col-mtime">
+          <col class="col-path">
+          <col class="col-actions">
+        </colgroup>
         <thead>
           <tr>
             <th data-sort="name">名前</th>

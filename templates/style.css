@@ -40,6 +40,10 @@ header h1 { display: inline; margin: 0; font-size: 13px; font-weight: 600; }
 .view-toggle button.active { background: var(--accent); color: #fff; }
 .show-errored-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); cursor: pointer; user-select: none; padding: 0 4px; }
 .show-errored-toggle input { margin: 0; cursor: pointer; }
+.filter-count { margin-left: auto; padding: 3px 10px; border-radius: 4px; background: var(--row); color: var(--fg); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.filter-count.active { background: var(--accent); color: #fff; }
+.filter-count .fc-breakdown { color: var(--muted); margin-left: 6px; font-size: 11px; }
+.filter-count.active .fc-breakdown { color: rgba(255,255,255,0.85); }
 
 #perfWarn { display: none; padding: 8px 16px; background: rgba(245, 158, 11, 0.15); border-bottom: 1px solid rgba(245, 158, 11, 0.4); font-size: 12px; color: var(--fg); }
 
@@ -68,18 +72,31 @@ main { padding: 8px 16px 80px; }
 
 .table-build-progress { padding: 8px 12px; font-size: 12px; color: var(--accent); background: var(--row); border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; }
 .table-wrap { overflow: auto; max-height: calc(100vh - 170px); position: relative; border: 1px solid var(--border); border-radius: 4px; }
-table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
+/* table-layout: fixed → ブラウザは <col> の width だけ見れば layout が決まる。
+   80k 行で「全行を見て列幅を決める」処理を回避するためのキー設定。 */
+table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; table-layout: fixed; }
+/* 各列の固定幅 (colgroup と整合)
+   table-layout: fixed では width: auto が「残り幅を分配」ではなく 0 になりうるため
+   全列に明示 width を与える。合計が container を超えれば横スクロールで対応。 */
+col.col-name   { width: 280px; }
+col.col-type   { width: 80px; }
+col.col-ext    { width: 70px; }
+col.col-size   { width: 90px; }
+col.col-count  { width: 90px; }
+col.col-mtime  { width: 170px; }
+col.col-path   { width: 420px; }
+col.col-actions { width: 150px; }
 thead th { background: var(--row); cursor: pointer; user-select: none; position: sticky; top: 0; z-index: 1; padding: 8px 10px; text-align: left; border-bottom: 2px solid var(--border); white-space: nowrap; font-weight: 600; font-size: 12px; color: var(--fg); }
 thead th.sort-asc::after { content: " \2191"; color: var(--accent); }
 thead th.sort-desc::after { content: " \2193"; color: var(--accent); }
-tbody td { padding: 4px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; vertical-align: middle; }
+tbody td { padding: 4px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
 tbody tr { cursor: pointer; }
 tbody tr.hidden { display: none; }
 tbody tr:hover { background: var(--hover); }
-td.name { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
-td.path { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
+td.name { font-weight: 500; }
+td.path { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
-td.actions { white-space: nowrap; position: sticky; right: 0; background: var(--bg); box-shadow: -8px 0 8px -8px rgba(0,0,0,0.15); }
+td.actions { white-space: nowrap; position: sticky; right: 0; background: var(--bg); box-shadow: -8px 0 8px -8px rgba(0,0,0,0.15); overflow: visible; }
 tbody tr:hover td.actions { background: var(--hover); }
 thead th.actions-head { position: sticky; right: 0; z-index: 2; background: var(--row); box-shadow: -8px 0 8px -8px rgba(0,0,0,0.15); }
 
@@ -119,12 +136,12 @@ ul.info-list .err-msg { color: var(--err); margin-top: 2px; font-size: 11px; }
 .column-panel label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
 .column-panel strong { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
 
-table.col-type-hidden  th:nth-child(2), table.col-type-hidden  td:nth-child(2),
-table.col-ext-hidden   th:nth-child(3), table.col-ext-hidden   td:nth-child(3),
-table.col-size-hidden  th:nth-child(4), table.col-size-hidden  td:nth-child(4),
-table.col-count-hidden th:nth-child(5), table.col-count-hidden td:nth-child(5),
-table.col-mtime-hidden th:nth-child(6), table.col-mtime-hidden td:nth-child(6),
-table.col-path-hidden  th:nth-child(7), table.col-path-hidden  td:nth-child(7) { display: none; }
+table.col-type-hidden  th:nth-child(2), table.col-type-hidden  td:nth-child(2), table.col-type-hidden  col.col-type,
+table.col-ext-hidden   th:nth-child(3), table.col-ext-hidden   td:nth-child(3), table.col-ext-hidden   col.col-ext,
+table.col-size-hidden  th:nth-child(4), table.col-size-hidden  td:nth-child(4), table.col-size-hidden  col.col-size,
+table.col-count-hidden th:nth-child(5), table.col-count-hidden td:nth-child(5), table.col-count-hidden col.col-count,
+table.col-mtime-hidden th:nth-child(6), table.col-mtime-hidden td:nth-child(6), table.col-mtime-hidden col.col-mtime,
+table.col-path-hidden  th:nth-child(7), table.col-path-hidden  td:nth-child(7), table.col-path-hidden  col.col-path { display: none; }
 
 .error-banner { display: none; margin-left: 8px; padding: 1px 8px; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4); border-radius: 3px; font-size: 11px; color: var(--err); }
 .error-banner.show { display: inline-block; }
