@@ -195,7 +195,8 @@
   }
 
   var treeNodes = new Array(items.length);
-  var tableRows = new Array(items.length);
+  // tableRows[] は廃止 (案 4 仮想スクロール対応)。可視範囲だけ実体化するので
+  // id → tr の永続マップは不要。詳細モーダル等は tr.dataset.id 経由でアクセスする。
 
   function setCopied(btn) {
     btn.classList.add('copied');
@@ -524,7 +525,6 @@
     var it = items[i];
     var tr = document.createElement('tr');
     tr.dataset.id = i;
-    tableRows[i] = tr;
 
     var tdName = document.createElement('td');
     tdName.className = 'name';
@@ -602,62 +602,84 @@
     tr.dataset.actionsBuilt = '1';
   }
 
-  var tableBuilt = false;
-  var tableBuilding = false;
+  // ===== 仮想スクロール対応のテーブル描画 (案 4) =====
+  // 80k+ 行を扱うため、画面外の行は DOM に置かない。
+  // - displayedIds[] : 表示対象 id (フィルタ・ソート後の順序)
+  // - 可視範囲 + バッファだけ <tr> を実体化、上下を空 <tr> の高さでスペースを稼ぐ
+  // - スクロール毎に窓を再描画 (高々 ~80 行の差分なので軽い)
+  var ROW_HEIGHT = 28;       // <tr> の想定高さ (CSS の padding 4 + line-height 20 ≈ 28px)
+  var BUFFER_ROWS = 10;      // 可視範囲の上下に確保する余白行数
 
-  // テーブル行は遅延・チャンク描画。22万件規模でも初期表示が止まらない。
-  // 完了時に callback(true) を呼ぶ。すでに構築済みなら同期で callback(true)。
+  var displayedIds = [];
+  for (var _vi = 0; _vi < items.length; _vi++) displayedIds.push(_vi);
+
+  var vtTbody = null;
+  var vtScrollContainer = null;
+  var vtInitialized = false;
+  var vtRafPending = false;
+  var vtRenderedStart = -1;
+  var vtRenderedEnd = -1;
+
+  function vt_render() {
+    vtRafPending = false;
+    if (!vtTbody || !vtScrollContainer) return;
+    var n = displayedIds.length;
+    var clientHeight = vtScrollContainer.clientHeight;
+    var scrollTop = vtScrollContainer.scrollTop;
+    var visibleCount = Math.ceil(clientHeight / ROW_HEIGHT);
+    var startIdx = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_ROWS);
+    var endIdx = Math.min(n, startIdx + visibleCount + 2 * BUFFER_ROWS);
+    if (startIdx === vtRenderedStart && endIdx === vtRenderedEnd) return;
+    vtRenderedStart = startIdx;
+    vtRenderedEnd = endIdx;
+
+    vtTbody.innerHTML = '';
+    if (startIdx > 0) {
+      var top = document.createElement('tr');
+      top.className = 'vt-spacer';
+      top.style.height = (startIdx * ROW_HEIGHT) + 'px';
+      vtTbody.appendChild(top);
+    }
+    var frag = document.createDocumentFragment();
+    for (var i = startIdx; i < endIdx; i++) {
+      frag.appendChild(buildTableRow(displayedIds[i]));
+    }
+    vtTbody.appendChild(frag);
+    if (endIdx < n) {
+      var bot = document.createElement('tr');
+      bot.className = 'vt-spacer';
+      bot.style.height = ((n - endIdx) * ROW_HEIGHT) + 'px';
+      vtTbody.appendChild(bot);
+    }
+  }
+
+  function vt_scheduleRender() {
+    if (vtRafPending) return;
+    vtRafPending = true;
+    requestAnimationFrame(vt_render);
+  }
+
+  function vt_resetWindow() {
+    // フィルタ・ソート変更時: 強制再描画のため rendered 範囲をリセット
+    vtRenderedStart = -1;
+    vtRenderedEnd = -1;
+  }
+
   function ensureTableBuilt(callback) {
-    if (tableBuilt) { if (callback) callback(true); return; }
-    if (tableBuilding) {
-      // 進行中: 既存の完了処理に乗っかる
-      var existing = window.__tableBuildCallbacks || [];
-      existing.push(callback);
-      window.__tableBuildCallbacks = existing;
-      return;
-    }
-    tableBuilding = true;
-    window.__tableBuildCallbacks = callback ? [callback] : [];
-
-    var tbody = document.getElementById('tableBody');
-    var progress = document.getElementById('tableBuildProgress');
-    if (progress) progress.style.display = 'block';
-
-    var CHUNK = 2000;
-    var i = 0;
-    var N = items.length;
-
-    function buildChunk() {
-      var frag = document.createDocumentFragment();
-      var end = Math.min(i + CHUNK, N);
-      for (; i < end; i++) {
-        frag.appendChild(buildTableRow(i));
-      }
-      tbody.appendChild(frag);
-      if (progress) {
-        progress.textContent = 'テーブル準備中... ' + i.toLocaleString() +
-                               ' / ' + N.toLocaleString();
-      }
-      if (i < N) {
-        // 次のフレームに譲り、ブラウザ操作をブロックしない
-        if (window.requestAnimationFrame) requestAnimationFrame(buildChunk);
-        else setTimeout(buildChunk, 0);
-      } else {
-        tableBuilt = true;
-        tableBuilding = false;
+    if (!vtInitialized) {
+      vtTbody = document.getElementById('tableBody');
+      vtScrollContainer = document.querySelector('.table-wrap');
+      if (vtTbody && vtScrollContainer) {
+        vtScrollContainer.addEventListener('scroll', vt_scheduleRender, { passive: true });
+        window.addEventListener('resize', vt_scheduleRender);
+        vtInitialized = true;
+        // 表示準備中の旧 progress 要素は廃止 (即時表示)
+        var progress = document.getElementById('tableBuildProgress');
         if (progress) progress.style.display = 'none';
-        // 構築完了時に現在のフィルタを反映 (一時的に隠したい行があれば適用)
-        var q = document.getElementById('search').value.trim();
-        var ext = document.getElementById('extFilter').value;
-        var type = document.getElementById('typeFilter').value;
-        if (q || ext || type) applyFilter();
-        var cbs = window.__tableBuildCallbacks || [];
-        cbs.forEach(function(cb) { if (cb) cb(true); });
-        window.__tableBuildCallbacks = null;
+        vt_render();
       }
     }
-    if (window.requestAnimationFrame) requestAnimationFrame(buildChunk);
-    else setTimeout(buildChunk, 0);
+    if (callback) callback(true);
   }
 
   var filterTimer = null;
@@ -716,6 +738,7 @@
     var visible = 0;
     var visibleFolders = 0;
     var visibleFiles = 0;
+    var newDisplayedIds = [];
     for (var k2 = 0; k2 < N; k2++) {
       var it2 = items[k2];
       var visTree = !active || matches[k2] || hasMD[k2];
@@ -725,13 +748,21 @@
         tn.classList.toggle('hidden', !visTree);
         if (active && hasMD[k2] && it2.t === 0) tn.classList.remove('collapsed');
       }
-      var tr2 = tableRows[k2];
-      if (tr2) tr2.classList.toggle('hidden', !visTable);
+      // 仮想スクロールでは tr 一覧をクラスで隠すのではなく、displayedIds から除外する
+      if (visTable) newDisplayedIds.push(k2);
       if (matches[k2]) {
         visible++;
         if (it2.t === 0) visibleFolders++;
         else visibleFiles++;
       }
+    }
+    displayedIds = newDisplayedIds;
+    // 現在のソート状態を新しい displayedIds に再適用
+    if (sortState.col) sortDisplayedIds(sortState.col, sortState.dir);
+    if (vtInitialized) {
+      vtScrollContainer.scrollTop = 0;
+      vt_resetWindow();
+      vt_render();
     }
 
     renderFilterCount(active, visible, visibleFolders, visibleFiles);
@@ -835,29 +866,39 @@
     return parseFloat(m[1]) * (mul[m[2].toUpperCase()] || 1);
   }
 
-  function sortTable(col, dir) {
-    var tbody = document.getElementById('tableBody');
-    var rows = Array.prototype.slice.call(tbody.children);
+  // displayedIds[] を col 列でソートする。仮想スクロールでは DOM 要素を直接並べ替え
+  // ず、id 配列を並べ替えてから vt_render() で再描画する。
+  function sortDisplayedIds(col, dir) {
     var keyFn = {
-      name: function(r) { return items[+r.dataset.id].n.toLowerCase(); },
-      type: function(r) { return items[+r.dataset.id].t; },
-      ext:  function(r) { return items[+r.dataset.id].e || ''; },
-      size: function(r) { return parseSizeNum(items[+r.dataset.id].s); },
-      count: function(r) { return items[+r.dataset.id].c || 0; },
-      mtime: function(r) { return items[+r.dataset.id].m; },
-      path: function(r) { return items[+r.dataset.id].cp.toLowerCase(); }
+      name: function(id) { return items[id].n.toLowerCase(); },
+      type: function(id) { return items[id].t; },
+      ext:  function(id) { return items[id].e || ''; },
+      size: function(id) { return parseSizeNum(items[id].s); },
+      count: function(id) { return items[id].c || 0; },
+      mtime: function(id) { return items[id].m; },
+      path: function(id) { return items[id].cp.toLowerCase(); }
     }[col];
-    // Schwartzian transform: 比較中に毎回 keyFn を呼ばないよう、行毎にキーを一度だけ計算。
-    var keyed = new Array(rows.length);
-    for (var ki = 0; ki < rows.length; ki++) keyed[ki] = [keyFn(rows[ki]), rows[ki]];
+    if (!keyFn) return;
+    // Schwartzian transform: id 毎にキーを一度だけ計算
+    var keyed = new Array(displayedIds.length);
+    for (var ki = 0; ki < displayedIds.length; ki++) {
+      keyed[ki] = [keyFn(displayedIds[ki]), displayedIds[ki]];
+    }
     keyed.sort(function(a, b) {
       if (a[0] < b[0]) return -dir;
       if (a[0] > b[0]) return dir;
       return 0;
     });
-    var frag = document.createDocumentFragment();
-    for (var i = 0; i < keyed.length; i++) frag.appendChild(keyed[i][1]);
-    tbody.appendChild(frag);
+    for (var i = 0; i < keyed.length; i++) displayedIds[i] = keyed[i][1];
+  }
+
+  function sortTable(col, dir) {
+    sortDisplayedIds(col, dir);
+    if (vtInitialized) {
+      vtScrollContainer.scrollTop = 0;
+      vt_resetWindow();
+      vt_render();
+    }
   }
 
   if (errors.length > 0) {
@@ -983,18 +1024,13 @@
     return s;
   }
   function exportCsv() {
-    // 行 DOM が未構築でもフィルタ状態は反映したいので、構築を待つ。
-    if (!tableBuilt) {
-      ensureTableBuilt(function() { exportCsv(); });
-      return;
-    }
+    // 仮想スクロールでは displayedIds[] が現在のフィルタ・ソート結果を保持しているので
+    // tableRows[] や DOM を参照せず、id 配列を直接走査する。
     var headers = ['名前', '種別', '拡張子', 'サイズ', 'アイテム数', '更新日時',
                    'パス', '親フォルダパス', 'リンク先', 'エラー'];
     var lines = [headers.map(csvEscape).join(',')];
-    for (var i = 0; i < items.length; i++) {
-      var tr = tableRows[i];
-      if (tr && tr.classList.contains('hidden')) continue;  // 現在のフィルタ結果のみ
-      var it = items[i];
+    for (var i = 0; i < displayedIds.length; i++) {
+      var it = items[displayedIds[i]];
       var typeLabel = getTypeLabel(it);
       // truncated folder は count を計測していない (走査未実施)。エラーフォルダは count=null。
       // 両方とも CSV 上は空欄にする。

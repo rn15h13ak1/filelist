@@ -93,6 +93,9 @@ tbody td { padding: 4px 10px; border-bottom: 1px solid var(--border); white-spac
 tbody tr { cursor: pointer; }
 tbody tr.hidden { display: none; }
 tbody tr:hover { background: var(--hover); }
+/* 仮想スクロール用スペーサー行: 表示は空、ホバー反応・カーソルなし */
+tbody tr.vt-spacer { cursor: default; background: transparent !important; }
+tbody tr.vt-spacer:hover { background: transparent; }
 td.name { font-weight: 500; }
 td.path { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
