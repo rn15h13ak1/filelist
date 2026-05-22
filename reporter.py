@@ -81,6 +81,8 @@ def write_html(
     generated_at: str,
     dedup_skipped: int = 0,
     title: str = "filelist",
+    exclude_patterns: List[str] = None,
+    excluded_file_counts: Dict[str, int] = None,
 ):
     """items / errors / targets から HTML を生成して指定パスへ書き出す。
 
@@ -98,6 +100,8 @@ def write_html(
             }
             for t in targets
         ],
+        "exclude_patterns": list(exclude_patterns) if exclude_patterns else [],
+        "excluded_file_counts": dict(excluded_file_counts) if excluded_file_counts else {},
         "generated_at": generated_at,
         "dedup_skipped": dedup_skipped,
     }

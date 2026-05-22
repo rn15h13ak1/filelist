@@ -3,6 +3,7 @@
   var items = RAW.items;
   var errors = RAW.errors || [];
   var targets = RAW.targets || [];
+  var excludePatterns = RAW.exclude_patterns || [];
 
   var childrenOf = {};
   var rootIds = [];
@@ -81,6 +82,11 @@
                  '<button type="button" class="link-btn" id="showTargetsBtn" ' +
                  'title="対象パス一覧をモーダルで表示">パスを表示</button>');
     }
+    if (excludePatterns.length) {
+      parts.push('除外: ' + excludePatterns.length + ' 件 ' +
+                 '<button type="button" class="link-btn" id="showExcludesBtn" ' +
+                 'title="除外パターン一覧をモーダルで表示">パターンを表示</button>');
+    }
     var dedup = RAW.dedup_skipped || 0;
     if (dedup > 0) {
       parts.push('<span class="dedup-note" title="重なるターゲット同士でマージされた件数">' +
@@ -133,6 +139,45 @@
                '<span class="item-meta">(' + depth + ')</span></li>';
       }).join('');
       showListModal('対象パス (' + targets.length + ')', lis);
+    });
+  }
+
+  // 除外パターン一覧ボタン
+  var excludesBtn = document.getElementById('showExcludesBtn');
+  if (excludesBtn) {
+    excludesBtn.addEventListener('click', function() {
+      // フォルダ単位の除外は items に残るので動的に集計、
+      // ファイル / symlink 単位の除外は payload (excluded_file_counts) を使う。
+      var folderHits = {};
+      for (var ei = 0; ei < items.length; ei++) {
+        var ex = items[ei];
+        if (ex.ex && ex.exp) {
+          folderHits[ex.exp] = (folderHits[ex.exp] || 0) + 1;
+        }
+      }
+      var fileHits = RAW.excluded_file_counts || {};
+      var sorted = excludePatterns.slice().sort(function(a, b) {
+        var la = a.toLowerCase(), lb = b.toLowerCase();
+        return la < lb ? -1 : (la > lb ? 1 : 0);
+      });
+      var lis = sorted.map(function(p) {
+        var fh = folderHits[p] || 0;
+        var fl = fileHits[p] || 0;
+        var total = fh + fl;
+        var hitLabel;
+        if (total === 0) {
+          hitLabel = 'ヒット 0 件';
+        } else if (fh > 0 && fl > 0) {
+          hitLabel = total + ' 件にヒット (フォルダ ' + fh + ' / ファイル ' + fl + ')';
+        } else if (fh > 0) {
+          hitLabel = fh + ' 件にヒット (フォルダ)';
+        } else {
+          hitLabel = fl + ' 件にヒット (ファイル)';
+        }
+        return '<li><code>' + escapeHtml(p) + '</code>' +
+               '<span class="item-meta">(' + hitLabel + ')</span></li>';
+      }).join('');
+      showListModal('除外パターン (' + excludePatterns.length + ')', lis);
     });
   }
 

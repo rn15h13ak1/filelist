@@ -82,6 +82,7 @@ def main() -> int:
     items: list = []
     errors: list = []
     seen_paths: dict = {}
+    excluded_file_counts: dict = {}
     total_skipped = 0
     progress = _make_progress_callback(args.quiet)
 
@@ -93,6 +94,7 @@ def main() -> int:
         counters = scan_target(
             target, i, config.exclude_patterns, items, errors,
             seen_paths=seen_paths, progress_callback=progress,
+            excluded_file_counts=excluded_file_counts,
         )
         total_skipped += counters.skipped
         if not args.quiet:
@@ -118,7 +120,9 @@ def main() -> int:
         for op in output_paths:
             sys.stderr.write(f"Writing {op} ...\n")
     write_html(items, errors, config.targets, output_paths, generated_at,
-               dedup_skipped=total_skipped, title=config.title)
+               dedup_skipped=total_skipped, title=config.title,
+               exclude_patterns=config.exclude_patterns,
+               excluded_file_counts=excluded_file_counts)
     if not args.quiet:
         sys.stderr.write("Done.\n")
 

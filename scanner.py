@@ -246,6 +246,7 @@ def scan_target(
     errors: List[Dict[str, str]],
     seen_paths: Optional[Dict[str, int]] = None,
     progress_callback: Optional[Callable[[int], None]] = None,
+    excluded_file_counts: Optional[Dict[str, int]] = None,
 ) -> ScanCounters:
     """単一ターゲットを再帰スキャンし、items / errors に追記する。
 
@@ -378,6 +379,10 @@ def scan_target(
             if matched_pattern:
                 # ファイル / symlink で除外 → 完全に弾く (旧来動作)
                 if not is_dir or is_link:
+                    if excluded_file_counts is not None:
+                        excluded_file_counts[matched_pattern] = (
+                            excluded_file_counts.get(matched_pattern, 0) + 1
+                        )
                     continue
                 excluded_info[entry.path] = matched_pattern
             annotated.append((entry, st, is_dir, is_link))
