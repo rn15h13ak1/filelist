@@ -181,9 +181,16 @@
     });
   }
 
+  // 拡張子ドロップダウンには「現実的な拡張子」だけ載せる。
+  // 例: ".log_20260522" のようなタイムスタンプ付きの "なんちゃって拡張子" は除外。
+  // 上限を 5 文字としているため、tar.gz / tar.bz2 のような複合拡張子は載らない点に注意。
+  var EXT_FILTER_MAX_LEN = 5;
   var extSet = {};
   for (var i2 = 0; i2 < items.length; i2++) {
-    if (items[i2].t === 1 && items[i2].e) extSet[items[i2].e] = true;
+    var _ie = items[i2];
+    if (_ie.t === 1 && _ie.e && _ie.e.length <= EXT_FILTER_MAX_LEN) {
+      extSet[_ie.e] = true;
+    }
   }
   var extList = Object.keys(extSet).sort();
   var extSel = document.getElementById('extFilter');
