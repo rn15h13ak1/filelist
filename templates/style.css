@@ -71,6 +71,10 @@ main { padding: 8px 16px 80px; }
 .tree .item:hover .actions { opacity: 1; }
 
 .table-build-progress { padding: 8px 12px; font-size: 12px; color: var(--accent); background: var(--row); border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; }
+.table-limit-notice { padding: 24px 28px; font-size: 13px; line-height: 1.7; color: var(--fg); background: rgba(245, 158, 11, 0.10); border: 1px solid rgba(245, 158, 11, 0.45); border-radius: 6px; margin-bottom: 12px; }
+.table-limit-notice strong { color: var(--warn); font-size: 14px; display: block; margin-bottom: 6px; }
+.table-limit-notice .tln-count { font-variant-numeric: tabular-nums; font-weight: 600; }
+.table-limit-notice .tln-hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
 .table-wrap { overflow: auto; max-height: calc(100vh - 170px); position: relative; border: 1px solid var(--border); border-radius: 4px; }
 /* table-layout: fixed → ブラウザは <col> の width だけ見れば layout が決まる。
    80k 行で「全行を見て列幅を決める」処理を回避するためのキー設定。 */

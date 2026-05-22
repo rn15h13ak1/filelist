@@ -122,7 +122,8 @@ def main() -> int:
     write_html(items, errors, config.targets, output_paths, generated_at,
                dedup_skipped=total_skipped, title=config.title,
                exclude_patterns=config.exclude_patterns,
-               excluded_file_counts=excluded_file_counts)
+               excluded_file_counts=excluded_file_counts,
+               table_display_limit=config.table_display_limit)
     if not args.quiet:
         sys.stderr.write("Done.\n")
 

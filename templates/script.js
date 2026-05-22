@@ -609,6 +609,9 @@
   // - スクロール毎に窓を再描画 (高々 ~80 行の差分なので軽い)
   var ROW_HEIGHT = 28;       // <tr> の想定高さ (CSS の padding 4 + line-height 20 ≈ 28px)
   var BUFFER_ROWS = 10;      // 可視範囲の上下に確保する余白行数
+  // テーブル表示閾値 (yaml の output.table_display_limit から取得)。
+  // 0 or 未設定なら無制限。表示対象がこの件数を超えると実テーブルを描画せず通知のみ。
+  var TABLE_DISPLAY_LIMIT = RAW.table_display_limit || 0;
 
   var displayedIds = [];
   for (var _vi = 0; _vi < items.length; _vi++) displayedIds.push(_vi);
@@ -624,6 +627,30 @@
     vtRafPending = false;
     if (!vtTbody || !vtScrollContainer) return;
     var n = displayedIds.length;
+
+    // 表示閾値を超えている場合は実テーブルを描画せず、通知だけ出す
+    var notice = document.getElementById('tableLimitNotice');
+    var tableWrap = document.querySelector('.table-wrap');
+    if (TABLE_DISPLAY_LIMIT > 0 && n > TABLE_DISPLAY_LIMIT) {
+      vtTbody.innerHTML = '';
+      vtRenderedStart = -1;
+      vtRenderedEnd = -1;
+      if (notice) {
+        notice.hidden = false;
+        notice.innerHTML =
+          '<strong>テーブル表示は省略されています</strong>' +
+          '対象が <span class="tln-count">' + n.toLocaleString() + '</span> 件あり、' +
+          '上限の <span class="tln-count">' + TABLE_DISPLAY_LIMIT.toLocaleString() + '</span> 件を超えています。' +
+          '<div class="tln-hint">テーブルを表示するには、上の検索 / 拡張子フィルタ / 種別フィルタで ' +
+          TABLE_DISPLAY_LIMIT.toLocaleString() + ' 件以下に絞り込んでください。' +
+          'ツリー表示は件数に関係なく利用できます。</div>';
+      }
+      if (tableWrap) tableWrap.style.display = 'none';
+      return;
+    }
+    if (notice) notice.hidden = true;
+    if (tableWrap) tableWrap.style.display = '';
+
     var clientHeight = vtScrollContainer.clientHeight;
     var scrollTop = vtScrollContainer.scrollTop;
     var visibleCount = Math.ceil(clientHeight / ROW_HEIGHT);

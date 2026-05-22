@@ -84,6 +84,7 @@ def write_html(
     title: str = "filelist",
     exclude_patterns: List[str] = None,
     excluded_file_counts: Dict[str, int] = None,
+    table_display_limit: int = None,
 ):
     """items / errors / targets から HTML を生成して指定パスへ書き出す。
 
@@ -103,6 +104,7 @@ def write_html(
         ],
         "exclude_patterns": list(exclude_patterns) if exclude_patterns else [],
         "excluded_file_counts": dict(excluded_file_counts) if excluded_file_counts else {},
+        "table_display_limit": int(table_display_limit) if table_display_limit else 0,
         "generated_at": generated_at,
         "dedup_skipped": dedup_skipped,
     }

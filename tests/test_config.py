@@ -477,3 +477,62 @@ output:
 """)
         with pytest.raises(ConfigError, match="文字列"):
             load_config(str(cfg), default_search_dir=cfg.parent)
+
+    def test_table_display_limit_default_none(self, make_config):
+        cfg = make_config("""
+targets:
+  - path: /opt/a
+""")
+        c = load_config(str(cfg), default_search_dir=cfg.parent)
+        assert c.table_display_limit is None
+
+    def test_table_display_limit_positive_int(self, make_config):
+        cfg = make_config("""
+targets:
+  - path: /opt/a
+output:
+  table_display_limit: 5000
+""")
+        c = load_config(str(cfg), default_search_dir=cfg.parent)
+        assert c.table_display_limit == 5000
+
+    def test_table_display_limit_zero_treated_as_unlimited(self, make_config):
+        cfg = make_config("""
+targets:
+  - path: /opt/a
+output:
+  table_display_limit: 0
+""")
+        c = load_config(str(cfg), default_search_dir=cfg.parent)
+        assert c.table_display_limit is None
+
+    def test_table_display_limit_negative_treated_as_unlimited(self, make_config):
+        cfg = make_config("""
+targets:
+  - path: /opt/a
+output:
+  table_display_limit: -1
+""")
+        c = load_config(str(cfg), default_search_dir=cfg.parent)
+        assert c.table_display_limit is None
+
+    def test_table_display_limit_non_int_rejected(self, make_config):
+        cfg = make_config("""
+targets:
+  - path: /opt/a
+output:
+  table_display_limit: "5000"
+""")
+        with pytest.raises(ConfigError, match="整数"):
+            load_config(str(cfg), default_search_dir=cfg.parent)
+
+    def test_table_display_limit_bool_rejected(self, make_config):
+        # YAML の true / false が整数として誤って通らないことの確認
+        cfg = make_config("""
+targets:
+  - path: /opt/a
+output:
+  table_display_limit: true
+""")
+        with pytest.raises(ConfigError, match="整数"):
+            load_config(str(cfg), default_search_dir=cfg.parent)

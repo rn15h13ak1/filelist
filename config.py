@@ -55,6 +55,9 @@ class Config:
     output_paths: List[str] = field(default_factory=lambda: ["./reports/filelist.html"])
     title: str = "filelist"
     config_path: Optional[Path] = None
+    # テーブルビューの自動表示閾値: 表示対象がこの件数以下のときだけ実テーブルを描画する。
+    # None または 0 以下は無制限 (常に表示) を意味する。
+    table_display_limit: Optional[int] = None
 
     @property
     def output_path(self) -> str:
@@ -413,6 +416,18 @@ def load_config(config_arg: Optional[str], default_search_dir: Path) -> Config:
     output_cfg = raw.get("output") or {}
     title = str(output_cfg.get("title") or "filelist")
 
+    # table_display_limit: 表示対象がこの値以下のときだけ実テーブルを描画する閾値。
+    # 未指定・null・0 以下なら無制限 (None として扱う)。
+    raw_limit = output_cfg.get("table_display_limit")
+    table_display_limit: Optional[int] = None
+    if raw_limit is not None:
+        if not isinstance(raw_limit, int) or isinstance(raw_limit, bool):
+            raise ConfigError(
+                f"output.table_display_limit は整数で指定してください: {raw_limit!r}"
+            )
+        if raw_limit > 0:
+            table_display_limit = raw_limit
+
     # output.path は文字列 or 文字列リストを受け取る。
     # 例 1 (単一): path: "./reports/filelist.html"
     # 例 2 (複数): path: ["./reports/filelist.html", "./reports/filelist_{datetime}.html"]
@@ -445,4 +460,5 @@ def load_config(config_arg: Optional[str], default_search_dir: Path) -> Config:
         output_paths=resolved_paths,
         title=title,
         config_path=config_path,
+        table_display_limit=table_display_limit,
     )
