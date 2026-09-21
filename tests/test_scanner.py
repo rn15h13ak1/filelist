@@ -22,13 +22,13 @@ from tests.conftest import make_target
 
 class TestDetectSep:
     @pytest.mark.parametrize("path,sep", [
-        ("/Users/foo", "/"),
+        ("/Users/foo", "/"),  # check-privacy:ignore
         ("/", "/"),
         ("./relative", "/"),
         (r"\\server\share", "\\"),
         ("//server/share", "\\"),
-        (r"C:\Users\foo", "\\"),
-        ("C:/Users/foo", "\\"),
+        (r"C:\Users\foo", "\\"),  # check-privacy:ignore
+        ("C:/Users/foo", "\\"),  # check-privacy:ignore
         ("Z:", "\\"),
         (r"path\with\backslashes", "\\"),
     ])
@@ -38,7 +38,7 @@ class TestDetectSep:
 
 class TestUnifySep:
     def test_posix_unchanged(self):
-        assert unify_sep("/Users/foo", "/") == "/Users/foo"
+        assert unify_sep("/Users/foo", "/") == "/Users/foo"  # check-privacy:ignore
         assert unify_sep("/a/b/c", "/") == "/a/b/c"
 
     def test_windows_normalizes_forward_to_back(self):
@@ -481,7 +481,7 @@ class TestConsolidateCommonRoots:
 
     def test_mixed_posix_and_windows_not_merged(self):
         from scanner import consolidate_common_roots
-        items = self._make_items_with_roots(["Z:/foo", "/Users/bar"])
+        items = self._make_items_with_roots(["Z:/foo", "/Users/bar"])  # check-privacy:ignore
         consolidate_common_roots(items)
         # セパレータが揃わない → マージしない
         assert len(items) == 2

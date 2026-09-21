@@ -107,7 +107,7 @@ YAML 内のパスは **フォワードスラッシュ `/` のみ** を使用し�
 |---|---|
 | Windows UNC | `"//server/share"` |
 | Windows ドライブ | `"Z:/projectA"` |
-| POSIX | `"/Users/foo"` |
+| POSIX | `"/Users/foo"` | <!-- check-privacy:ignore -->
 | 相対パス | `"./sub"` （config.yaml 基準で解決） |
 | **glob で複数展開** | `"//server/share/20[23][0-9]/project"` （後述） |
 

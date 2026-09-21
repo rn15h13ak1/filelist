@@ -12,7 +12,7 @@
 # パス記法:
 #   YAML 内のパスは **フォワードスラッシュ "/" で統一** してください。
 #   バックスラッシュ表記は YAML のエスケープで壊れやすいため拒否されます。
-#   - Linux / macOS / WSL ローカル: "/Users/foo"
+#   - Linux / macOS / WSL ローカル: "/Users/foo"    # check-privacy:ignore
 #   - Windows UNC:                 "//server/share"
 #   - Windows ドライブ:             "Z:/projectA"
 #   - 相対パス:                     "./local"

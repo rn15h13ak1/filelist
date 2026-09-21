@@ -30,3 +30,12 @@ config.yaml
 filelist.html
 filelist_*.html
 /reports/
+
+# 資格情報（.venv/ や config.yaml とは別物。鍵・トークン・環境変数ファイルの追跡を防ぐ）
+.env
+.env.*
+secrets.yaml
+credentials*
+*.pem
+*.key
+*.local.yaml
