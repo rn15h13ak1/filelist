@@ -253,18 +253,18 @@ config 読込時の重複検出（Case 3）では symlink を解決した実体�
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                  # 全テスト実行 (121 ケース)
+pytest                  # 全テスト実行 (152 ケース)
 pytest -v               # 詳細出力
 pytest tests/test_scanner.py    # 個別ファイル
 pytest -k path                  # 名前で絞り込み
 ```
 
-テストカバー範囲（121 ケース）:
+テストカバー範囲（152 ケース）:
 
-- `test_config.py` — YAML 読み込み・必須項目・型エラー、バックスラッシュ拒否、相対パス解決、`{datetime}` 置換、`output.title`、ターゲット重複検出（Case 1/3）、copy_as 整合性検証、`max_depth` バリデーション
-- `test_scanner.py` — `detect_sep` / `unify_sep` / `normalize_root` / `make_path` の境界、`scan_target` 基本動作、`max_depth` と truncated フラグ、複数ターゲットのマージ・dedup（3 ターゲット推移マージ含む）、シンボリックリンク非追跡（自己参照・循環）、tar.gz 等の 2 段拡張子、長い日本語ファイル名、再帰上限を超える深い tree、アクセスエラー記録
-- `test_reporter.py` — HTML 生成、テンプレート埋め込み、出力先ディレクトリ自動作成、JSON データブロックの XSS 安全性（`</script>` 等のエスケープ）、プレースホルダ衝突非再置換、`dedup_skipped` ペイロード、`truncated` フラグ、UI 要素 (depthExpand / columnPanel / csvExport / リンクフィルタ / hash handler / csvEscape) の静的検証、カスタムタイトルと XSS エスケープ
-- `test_cli.py` — 終了コード 0/1/2、YAML 構文エラー、重複ターゲット、copy_as 競合、`-o` 出力上書き、`-v` 詳細出力、`-q` ログ抑制、`--dry-run` 検証専用モード、マージ動作の E2E 検証、フルパス起動
+- `test_config.py`（50 ケース） — YAML 読み込み・必須項目・型エラー、バックスラッシュ拒否、相対パス解決、`{datetime}` 置換、`output.title`、`output.path` のリスト指定、`output.table_display_limit`、glob 展開（`*` / `?` / `[...]`、マッチ 0 件、copy_as への捕捉値の反映）、ターゲット重複検出（Case 1/3）、copy_as 整合性検証、`max_depth` バリデーション
+- `test_scanner.py`（65 ケース） — `detect_sep` / `unify_sep` / `normalize_root` / `make_path` の境界、`scan_target` 基本動作、`max_depth` と truncated フラグ、除外パターン一致フォルダの可視化（`excluded` フラグ）、共通親パスでの合成ルートと祖先・子孫ターゲットの統合、複数ターゲットのマージ・dedup（3 ターゲット推移マージ含む）、シンボリックリンク非追跡（自己参照・循環）、tar.gz 等の 2 段拡張子、長い日本語ファイル名、再帰上限を超える深い tree、アクセスエラー記録
+- `test_reporter.py`（21 ケース） — HTML 生成、テンプレート埋め込み、出力先ディレクトリ自動作成、JSON データブロックの XSS 安全性（`</script>` 等のエスケープ）、プレースホルダ衝突非再置換、`dedup_skipped` ペイロード、`truncated` フラグ、UI 要素 (depthExpand / columnPanel / csvExport / リンクフィルタ / hash handler / csvEscape) の静的検証、カスタムタイトルと XSS エスケープ、複数出力パスへの同一内容の書き出し
+- `test_cli.py`（16 ケース） — 終了コード 0/1/2、YAML 構文エラー、重複ターゲット、copy_as 競合、`-o` 出力上書き、`-v` 詳細出力、`-q` ログ抑制、`--dry-run` 検証専用モード、マージ動作の E2E 検証、複数出力パス、フルパス起動
 
 ## 既知の制限 / 設計上の決定
 
